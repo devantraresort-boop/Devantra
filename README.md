@@ -16,6 +16,10 @@ A FastAPI backend and responsive guest/admin website, using SQLAlchemy, PostgreS
 
 Room inventory, prices, policies and contact details start empty. Add the resort's real information in `/admin`; no sample reservations or default admin password are installed.
 
+For local testing, after applying migrations run `python -m backend.app.seed_demo`. This adds four clearly labelled demo room types priced at INR 3,500–12,000 per night, with sample capacities, amenities and illustrative stock photos. Running it again skips existing demo rooms and preserves admin edits. It refuses to run with `ENVIRONMENT=production`; archive the demo rooms before using that database for real bookings.
+
+The admin panel is at `http://127.0.0.1:8000/admin`. Create your account once with `python -m backend.app.create_admin`, which prompts for your email, display name and a password of at least 12 characters. Sign in with those credentials. No default admin login is provided.
+
 ## Run locally on macOS/Linux
 
 Use Python 3.13 (the supported deployment version). From this directory:
