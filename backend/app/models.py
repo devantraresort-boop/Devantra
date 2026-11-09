@@ -1,10 +1,10 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from backend.app.database import Base
+from backend.app.base import Base
 
 
 def utcnow() -> datetime:
@@ -31,6 +31,7 @@ class Admin(Base):
     name: Mapped[str] = mapped_column(String(120))
     email: Mapped[str] = mapped_column(String(254), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
+    token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
@@ -88,10 +89,13 @@ class Booking(Base):
         CheckConstraint("check_out > check_in", name="ck_booking_valid_dates"),
         CheckConstraint("adults > 0 AND children >= 0", name="ck_booking_guest_count"),
         CheckConstraint("total_amount >= 0", name="ck_booking_nonnegative_total"),
+        Index("ix_bookings_inventory", "room_id", "status", "check_in", "check_out"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     booking_ref: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
+    request_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id", ondelete="RESTRICT"), index=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     guest_name: Mapped[str] = mapped_column(String(120))
@@ -152,6 +156,7 @@ class PaymentTransaction(Base):
     payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id", ondelete="CASCADE"), index=True)
     gateway_event_id: Mapped[str | None] = mapped_column(String(120), unique=True, nullable=True)
     gateway_refund_id: Mapped[str | None] = mapped_column(String(120), unique=True, nullable=True)
+    request_key: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
     gateway_payment_id: Mapped[str | None] = mapped_column(String(120), index=True)
     event_type: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(24))
@@ -235,3 +240,40 @@ class AdminActivityLog(Base):
     entity_id: Mapped[str] = mapped_column(String(64), default="")
     details: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+
+
+class SiteSettings(Base):
+    __tablename__ = "site_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    phone: Mapped[str] = mapped_column(String(32), default="")
+    email: Mapped[str] = mapped_column(String(254), default="")
+    address: Mapped[str] = mapped_column(String(1000), default="")
+    cancellation_policy: Mapped[str] = mapped_column(Text, default="")
+
+
+class EmailOutbox(Base):
+    __tablename__ = "email_outbox"
+    __table_args__ = (Index("ix_email_outbox_due", "status", "available_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dedupe_key: Mapped[str | None] = mapped_column(String(200), unique=True, nullable=True)
+    recipient: Mapped[str] = mapped_column(String(254))
+    subject: Mapped[str] = mapped_column(String(250))
+    body_html: Mapped[str] = mapped_column(Text)
+    body_text: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    available_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    lease_token: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class WebhookEvent(Base):
+    __tablename__ = "webhook_events"
+
+    event_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

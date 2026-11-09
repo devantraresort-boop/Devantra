@@ -62,3 +62,5 @@
   .admin-tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 8px; }
   .admin-tabs button { flex: 0 0 auto; }
 }
+
+.pagination { align-items: center; margin-top: 1.5rem; gap: 1rem; }

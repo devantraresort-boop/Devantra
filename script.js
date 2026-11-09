@@ -1,4 +1,4 @@
-const API_BASE = (new URLSearchParams(location.search).get("api") || "").replace(/\/$/, "");
+const API_BASE = ""; // Always keep guest details on this website's origin.
 const api = async (path, options = {}) => {
   let response;
   try {
@@ -150,17 +150,17 @@ function renderBookingState(booking, message, allowCancel = true) {
   state.append(makeElement("p", "", message));
   state.append(makeElement("p", "", `Reference: ${booking.booking_ref}`));
   state.append(makeElement("p", "", `${booking.room_name} · ${booking.check_in} to ${booking.check_out} · ${formatPrice(booking.total_amount)}`));
-  if (booking.expires_at) {
+  if (booking.expires_at && booking.status === "pending_payment") {
     state.append(makeElement("p", "", `This unpaid room hold expires at ${new Date(`${booking.expires_at}Z`).toLocaleString()}.`));
   }
-  if (allowCancel) {
+  if (allowCancel && ["pending_payment", "confirmed"].includes(booking.status)) {
     const cancel = makeElement("button", "button button-outline", "Cancel this request");
     cancel.type = "button";
     cancel.addEventListener("click", async () => {
       if (!window.confirm("Cancel this booking request?")) return;
       cancel.disabled = true;
       try {
-        await api(`/api/bookings/${encodeURIComponent(booking.booking_ref)}/cancel?email=${encodeURIComponent(booking.guest_email)}`, { method: "POST" });
+        await api("/api/bookings/cancel", { method: "POST", body: JSON.stringify({ booking_ref: booking.booking_ref, email: booking.guest_email }) });
         state.replaceChildren(makeElement("p", "", "Your booking request has been cancelled."));
       } catch (error) {
         state.append(makeElement("p", "form-feedback", error.message));
@@ -168,6 +168,30 @@ function renderBookingState(booking, message, allowCancel = true) {
       }
     });
     state.append(cancel);
+  }
+  const refresh = makeElement("button", "button button-outline", "Refresh booking status");
+  refresh.type = "button";
+  refresh.addEventListener("click", async () => {
+    refresh.disabled = true;
+    try {
+      const current = await api("/api/bookings/lookup", { method: "POST", body: JSON.stringify({ booking_ref: booking.booking_ref, email: booking.guest_email }) });
+      renderBookingState(current, `Booking: ${current.status.replaceAll("_", " ")} · Payment: ${current.payment_status.replaceAll("_", " ")}`);
+    } catch (error) { stateError(error.message); refresh.disabled = false; }
+  });
+  state.append(refresh);
+  if (booking.status === "pending_payment" && booking.payment_status === "pending") {
+    const pay = makeElement("button", "button", "Continue to payment");
+    pay.type = "button";
+    pay.addEventListener("click", async () => {
+      pay.disabled = true;
+      try { await openPaymentCheckout(booking); }
+      catch (error) { stateError(error.message); }
+      finally { pay.disabled = false; }
+    });
+    state.append(pay);
+  }
+  if (booking.status === "confirmed" && booking.check_out <= todayString) {
+    state.append(reviewForm(booking));
   }
   bookingResults.append(state);
 }
@@ -217,7 +241,7 @@ async function openPaymentCheckout(booking) {
         const message = result.booking_status === "confirmed"
           ? "Payment verified. Your booking is confirmed."
           : result.message || "Payment was received, but the booking is not confirmed. Please contact the resort.";
-        renderBookingState({ ...booking, status: result.booking_status, payment_status: result.payment_status }, message, false);
+        renderBookingState({ ...booking, status: result.booking_status, payment_status: result.payment_status, expires_at: result.booking_status === "confirmed" ? null : booking.expires_at }, message);
       } catch (error) {
         bookingResults.replaceChildren(makeElement("p", "booking-state", `Payment could not be confirmed: ${error.message} Check the payment status or contact the resort with reference ${booking.booking_ref}.`));
       }
@@ -229,18 +253,7 @@ async function openPaymentCheckout(booking) {
   checkout.on("payment.failed", (response) => {
     const description = response?.error?.description || "Payment was not completed.";
     renderBookingState(booking, `${description} Your booking is not confirmed. You can try again while the room hold remains active.`);
-    const retry = makeElement("button", "button", "Try payment again");
-    retry.type = "button";
-    retry.addEventListener("click", async () => {
-      retry.disabled = true;
-      try {
-        await openPaymentCheckout(booking);
-      } catch (error) {
-        stateError(error.message);
-        retry.disabled = false;
-      }
-    });
-    bookingResults.querySelector(".booking-state")?.append(retry);
+
   });
   checkout.open();
 }
@@ -255,15 +268,15 @@ async function submitBooking(room, search, formData, form) {
   button.disabled = true;
   button.textContent = "Creating your booking…";
   try {
+    const body = JSON.stringify({ ...search, room_id: room.id,
+      guest_name: formData.get("guest_name"), guest_email: formData.get("guest_email"),
+      guest_phone: formData.get("guest_phone") });
+    if (form.dataset.requestBody !== body) {
+      form.dataset.requestKey = crypto.randomUUID();
+      form.dataset.requestBody = body;
+    }
     const booking = await api("/api/bookings", {
-      method: "POST",
-      body: JSON.stringify({
-        ...search,
-        room_id: room.id,
-        guest_name: formData.get("guest_name"),
-        guest_email: formData.get("guest_email"),
-        guest_phone: formData.get("guest_phone"),
-      }),
+      method: "POST", headers: { "Idempotency-Key": form.dataset.requestKey }, body,
     });
     try {
       await openPaymentCheckout(booking);
@@ -529,6 +542,7 @@ async function loadGallery() {
 async function loadSiteInfo() {
   try {
     const info = await api("/api/site-info");
+    document.querySelector("#cancellation-policy").textContent = info.cancellation_policy || "Contact the resort for cancellation and refund terms before booking.";
     const phone = document.querySelector("#contact-phone");
     const email = document.querySelector("#contact-email");
     const address = document.querySelector("#contact-address");
@@ -605,3 +619,68 @@ loadAmenities();
 loadPackages();
 loadGallery();
 loadSiteInfo();
+
+
+function reviewForm(booking) {
+  const form = makeElement("form", "guest-details-form");
+  form.append(makeElement("h3", "", "Review your stay"));
+  const ratingLabel = makeElement("label", "", "Rating");
+  const rating = makeElement("select");
+  for (let score = 5; score >= 1; score--) {
+    const option = makeElement("option", "", `${score} / 5`);
+    option.value = score;
+    rating.append(option);
+  }
+  ratingLabel.append(rating);
+  const commentLabel = makeElement("label", "", "Your review");
+  const comment = makeElement("textarea");
+  comment.maxLength = 3000;
+  commentLabel.append(comment);
+  const submit = makeElement("button", "button", "Submit for moderation");
+  const feedback = makeElement("p", "form-feedback");
+  feedback.setAttribute("role", "status");
+  form.append(ratingLabel, commentLabel, submit, feedback);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    submit.disabled = true;
+    try {
+      await api("/api/reviews", { method: "POST", body: JSON.stringify({ booking_ref: booking.booking_ref,
+        email: booking.guest_email, rating: Number(rating.value), comment: comment.value }) });
+      feedback.textContent = "Thank you. Your review is awaiting moderation.";
+    } catch (error) { feedback.textContent = error.message; submit.disabled = false; }
+  });
+  return form;
+}
+
+document.querySelector("#manage-booking-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button");
+  const feedback = form.querySelector("[role=status]");
+  button.disabled = true;
+  feedback.textContent = "Looking up your booking…";
+  try {
+    const booking = await api("/api/bookings/lookup", { method: "POST",
+      body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+    renderBookingState(booking, `Booking: ${booking.status.replaceAll("_", " ")} · Payment: ${booking.payment_status.replaceAll("_", " ")}`);
+    feedback.textContent = "Booking found.";
+    bookingResults.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) { feedback.textContent = error.message; }
+  finally { button.disabled = false; }
+});
+
+async function loadReviews() {
+  try {
+    const reviews = await api("/api/reviews");
+    const section = document.querySelector("#guest-reviews");
+    const list = section.querySelector(".review-list");
+    for (const review of reviews) {
+      const card = makeElement("article", "booking-state");
+      card.append(makeElement("h3", "", review.guest_name),
+        makeElement("p", "", `${review.rating} / 5`), makeElement("p", "", review.comment));
+      list.append(card);
+    }
+    section.hidden = !reviews.length;
+  } catch { /* Reviews are optional; the booking service remains available. */ }
+}
+loadReviews();

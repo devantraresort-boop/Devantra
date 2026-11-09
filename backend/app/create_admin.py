@@ -3,13 +3,12 @@ from getpass import getpass
 from pydantic import EmailStr, TypeAdapter, ValidationError
 from sqlalchemy import select
 
-from backend.app.database import Base, SessionLocal, engine
+from backend.app.database import SessionLocal
 from backend.app.models import Admin
 from backend.app.security import hash_password
 
 
 def main() -> None:
-    Base.metadata.create_all(bind=engine)
     email_input = input("Admin email: ").strip().lower()
     try:
         email = str(TypeAdapter(EmailStr).validate_python(email_input))

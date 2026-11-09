@@ -1,0 +1,43 @@
+name: Backend verification
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        database: [sqlite, postgres]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: resort
+          POSTGRES_PASSWORD: test-only-password
+          POSTGRES_DB: devantara_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U resort -d devantara_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      ENVIRONMENT: test
+      JWT_SECRET: ci-only-secret-never-use-in-production-123456
+      DATABASE_URL: ${{ matrix.database == 'postgres' && 'postgresql+psycopg://resort:test-only-password@localhost:5432/devantara_test' || 'sqlite:///./ci-test.db' }}
+      TEST_DATABASE_URL: ${{ matrix.database == 'postgres' && 'postgresql+psycopg://resort:test-only-password@localhost:5432/devantara_test' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pip install -r requirements-dev.txt
+      - run: python -m backend.app.migrate
+      - run: python -m alembic check
+      - run: python -m pyflakes backend tests
+      - run: python -m pytest -q
+      - run: node --check script.js && node --check admin.js

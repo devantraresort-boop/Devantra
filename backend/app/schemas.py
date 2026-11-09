@@ -1,5 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
+from typing import ClassVar
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
@@ -7,8 +9,29 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 class APIModel(BaseModel):
     model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
+    @model_validator(mode="after")
+    def validate_image_url(self):
+        value = getattr(self, "image_url", None)
+        if value:
+            parsed = urlsplit(value)
+            if not (parsed.scheme == "https" and parsed.hostname and not parsed.username and not parsed.password):
+                raise ValueError("Image URLs must use HTTPS without credentials.")
+        return self
+
+
+class UpdateModel(APIModel):
+    clearable: ClassVar[set[str]] = set()
+
+    @model_validator(mode="after")
+    def reject_null_required_fields(self):
+        for field in self.model_fields_set - self.clearable:
+            if getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null. Omit unchanged fields.")
+        return self
+
 
 class LoginRequest(APIModel):
+    model_config = ConfigDict(str_strip_whitespace=False)
     email: EmailStr
     password: str = Field(min_length=1, max_length=256)
 
@@ -37,7 +60,7 @@ class RoomCreate(APIModel):
     image_url: str = Field(default="", max_length=500)
 
 
-class RoomUpdate(APIModel):
+class RoomUpdate(UpdateModel):
     category_id: int | None = Field(default=None, gt=0)
     name: str | None = Field(default=None, min_length=2, max_length=120)
     description: str | None = Field(default=None, max_length=4000)
@@ -139,7 +162,7 @@ class AvailabilityUpdate(APIModel):
     start_date: date
     end_date: date
     is_closed: bool
-    price_override: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
+    price_override: Decimal | None = Field(default=None, gt=0, max_digits=10, decimal_places=2)
 
     @model_validator(mode="after")
     def validate_dates(self):
@@ -162,7 +185,7 @@ class ContentCreate(APIModel):
     is_active: bool = True
 
 
-class AmenityUpdate(APIModel):
+class AmenityUpdate(UpdateModel):
     name: str | None = Field(default=None, min_length=2, max_length=120)
     description: str | None = Field(default=None, max_length=2000)
     icon: str | None = Field(default=None, max_length=80)
@@ -184,7 +207,8 @@ class PackageCreate(APIModel):
         return self
 
 
-class PackageUpdate(APIModel):
+class PackageUpdate(UpdateModel):
+    clearable: ClassVar[set[str]] = {"price", "starts_on", "ends_on"}
     name: str | None = Field(default=None, min_length=2, max_length=120)
     description: str | None = Field(default=None, max_length=2000)
     price: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
@@ -202,7 +226,7 @@ class GalleryCreate(APIModel):
     is_published: bool = False
 
 
-class GalleryUpdate(APIModel):
+class GalleryUpdate(UpdateModel):
     title: str | None = Field(default=None, min_length=2, max_length=120)
     image_url: str | None = Field(default=None, min_length=1, max_length=500)
     category: str | None = Field(default=None, max_length=64)
@@ -217,8 +241,8 @@ class PaymentOrderRequest(APIModel):
 
 class PaymentVerifyRequest(APIModel):
     booking_ref: str = Field(min_length=16, max_length=32)
-    razorpay_order_id: str = Field(min_length=4, max_length=120)
-    razorpay_payment_id: str = Field(min_length=4, max_length=120)
+    razorpay_order_id: str = Field(min_length=4, max_length=120, pattern=r"^order_[A-Za-z0-9_]+$")
+    razorpay_payment_id: str = Field(min_length=4, max_length=120, pattern=r"^pay_[A-Za-z0-9_]+$")
     razorpay_signature: str = Field(min_length=16, max_length=256)
 
 
@@ -232,3 +256,29 @@ class ReviewCreate(APIModel):
     email: EmailStr
     rating: int = Field(ge=1, le=5)
     comment: str = Field(default="", max_length=3000)
+
+
+class BookingLookup(APIModel):
+    booking_ref: str = Field(pattern=r"^[a-f0-9]{32}$")
+    email: EmailStr
+
+
+class PasswordChange(APIModel):
+    model_config = ConfigDict(str_strip_whitespace=False)
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=12, max_length=256)
+
+
+class SiteSettingsUpdate(APIModel):
+    name: str = Field(min_length=2, max_length=120)
+    phone: str = Field(default="", max_length=32)
+    email: EmailStr | str = Field(default="", max_length=254)
+    address: str = Field(default="", max_length=1000)
+    cancellation_policy: str = Field(default="", max_length=5000)
+
+    @model_validator(mode="after")
+    def validate_contact_email(self):
+        if self.email:
+            from pydantic import TypeAdapter
+            self.email = str(TypeAdapter(EmailStr).validate_python(self.email)).lower()
+        return self

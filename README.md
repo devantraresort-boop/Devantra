@@ -1,74 +1,98 @@
 # Devantara Resort
 
-The website is served by a FastAPI application with a SQLAlchemy database. Resort rooms, rates, amenities, packages, gallery images, contact details, and reviews are managed as data; add only verified resort information through the admin tools.
+A FastAPI backend and responsive guest/admin website, using SQLAlchemy, PostgreSQL, Razorpay and a durable email outbox. SQLite remains available for local development. Deployment does not require Docker.
 
-## Requirements
+## What works
 
-- Python 3.11 or newer
-- SQLite for local development, or PostgreSQL for a hosted deployment
-- Razorpay test credentials and SMTP credentials only if you want to test online payments and email delivery
+- Room categories, inventory, capacity, nightly price overrides and closed dates managed by administrators.
+- Availability calculated from live holds and confirmed bookings. Room locks serialize reservations, payment confirmation and inventory edits on PostgreSQL.
+- Server-calculated prices and idempotent booking requests (`Idempotency-Key`). The guest form reuses the key after a network error.
+- Guest booking lookup, cancellation, payment retry/status refresh, and reviews after checkout. Reviews appear publicly only after moderation.
+- Razorpay orders, signature verification, captured-payment confirmation, duplicate webhook handling, partial/full refunds, and refund reconciliation after uncertain gateway responses.
+- Admin authentication with Argon2 passwords, expiring JWTs, password changes, and token revocation on sign-out. Sign-out/password changes revoke **all sessions for that administrator**.
+- Editable public contact details and cancellation policy; room/content management; enquiry tracking; paginated bookings, payments, reviews, enquiries and audit history.
+- Email jobs stored in the same transaction as the business action, retry/backoff, stale-worker recovery, and failed-delivery visibility. HTTP email delivery via Resend or SMTP.
+- Production configuration validation, bounded request bodies, security headers, request IDs, rate limits, health endpoints, database migrations and CI for SQLite/PostgreSQL.
 
-## Local setup (Windows PowerShell)
+Room inventory, prices, policies and contact details start empty. Add the resort's real information in `/admin`; no sample reservations or default admin password are installed.
 
-From the project directory:
+## Run locally on macOS/Linux
 
-```powershell
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-Copy-Item .env.example .env
+Use Python 3.13 (the supported deployment version). From this directory:
+
+```sh
+python3.13 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+cp .env.example .env
+python -c 'import secrets; print(secrets.token_urlsafe(48))'
 ```
 
-Set a unique JWT signing secret in `.env`. Generate one with:
+Put the generated secret in `.env` as `JWT_SECRET`. Keep `ENVIRONMENT=development` and the SQLite URL for local testing. Then:
 
-```powershell
-python -c "import secrets; print(secrets.token_urlsafe(48))"
-```
-
-Paste the generated value into `JWT_SECRET`. Do not commit `.env` or share its values. Keep the default local SQLite URL for development.
-
-Create/update the database schema and create an administrator:
-
-```powershell
-python -m alembic upgrade head
+```sh
+python -m backend.app.migrate
 python -m backend.app.create_admin
+python -m uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
-Start the application:
+Open `http://127.0.0.1:8000`, `/admin`, or `/docs`. In a second terminal, activate the same environment and start the retry worker:
 
-```powershell
-python -m uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+```sh
+python -m backend.app.worker
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000) for the website, [http://127.0.0.1:8000/admin](http://127.0.0.1:8000/admin) for administration, and [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) for the API reference.
+On Windows use `py -3.13 -m venv .venv`, `.\.venv\Scripts\Activate.ps1`, and `Copy-Item .env.example .env`; the remaining `python -m ...` commands are the same.
 
-The database starts without assumed room inventory or pricing. Sign in to the admin page to add room categories and rooms, then configure availability, rates, contact details, amenities, packages, and gallery items. The public site reflects those database values.
+Successful mutations attempt a small email batch after the response. The worker or scheduled maintenance is still required for retries when no visitors are active. Pending holds stop consuming inventory at expiry even if the worker is offline.
 
-## Configuration
+## Configure payments and email
 
-Environment variables are documented in `.env.example`. Important settings:
+In `.env` or the hosting dashboard:
 
-- `DATABASE_URL`: SQLite locally; use a PostgreSQL SQLAlchemy URL in production.
-- `JWT_SECRET`: required for admin login and must be at least 32 characters.
-- `CORS_ORIGINS` and `ALLOWED_HOSTS`: restrict these to the exact production origins and hostnames.
-- `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`: payment credentials. Keep `RAZORPAY_TEST_MODE=true` while testing and use only Razorpay test keys in that mode.
-- `SMTP_HOST`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`, and `ADMIN_CONTACT_EMAIL`: optional email notifications. Without SMTP, bookings and enquiries are still stored; email is not sent.
-- `RESORT_PHONE`, `RESORT_ADDRESS`, and `ADMIN_CONTACT_EMAIL`: verified public contact information.
+- `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`: use test credentials first.
+- `RAZORPAY_TEST_MODE=true`: switch to `false` together with live keys when ready.
+- `RAZORPAY_WEBHOOK_SECRET`: secret for the signed webhook at `/api/payments/webhook`.
+- Subscribe to `payment.captured`, `payment.failed`, `order.paid`, `refund.processed`, `refund.failed`.
+- For Resend: `RESEND_API_KEY` and `EMAIL_FROM` using a verified sender domain.
+- For SMTP: `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM_EMAIL`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_USE_TLS=true`.
 
-Configure the Razorpay webhook URL as `https://<your-domain>/api/payments/webhook` and set the matching webhook secret. Payment success is recorded only after a verified gateway response or signed webhook. Never collect or store card details in this application.
+When Resend is configured, it takes precedence over SMTP. Missing email credentials leave jobs queued; missing Razorpay credentials disable online payment without pretending a booking is confirmed. Resend account/domain setup and Razorpay business activation must be completed in your accounts.
 
-Before going live, use HTTPS, a strong unique JWT secret, a production PostgreSQL database with backups, restricted CORS/host settings, live Razorpay keys with test mode disabled, and operationally monitored email delivery. Verify inventory, prices, cancellation/refund policies, contact information, and all other resort content before publishing them.
+Booking references are unguessable guest-access credentials: keep them private. Lookup/cancellation in the UI send the reference and email in POST bodies. Legacy GET lookup is retained for compatibility; do not log query strings at your proxy.
 
-## Database migrations
+## Deployment
 
-Apply migrations with `python -m alembic upgrade head`. After changing SQLAlchemy models, create a reviewed migration using `python -m alembic revision --autogenerate -m "describe the schema change"` and apply it with `python -m alembic upgrade head`. Review generated migrations before deployment.
+See [the deployment guide](docs/DEPLOYMENT.md) for Render + Neon, Vercel + Neon, optional Docker, maintenance scheduling and backups. These files prepare deployments; they do not create or purchase hosting.
 
-## Tests
+- `render.yaml`: single-process free Render web service using an external PostgreSQL database.
+- `vercel.json` + `pyproject.toml`: FastAPI entrypoint for Vercel; use external PostgreSQL and a scheduler.
+- `Dockerfile` + `compose.yaml`: optional local/self-hosted PostgreSQL, API, migration job and worker.
 
-Run the API tests with:
+A free service can be useful for a preview, but sleeping instances, provider quotas and missing operational checks mean it is not a production availability guarantee. The code has not been load-tested at a claimed traffic level.
 
-```powershell
+## Verify changes
+
+```sh
 python -m pytest -q
+python -m pyflakes backend tests
+node --check script.js
+node --check admin.js
+python -m alembic check
 ```
 
-The tests use temporary SQLite databases and do not call Razorpay or send external email.
+The test suite covers pricing, inventory races, booking retries, authorization/revocation, signed payment events, late payments, refunds, outbox retries, moderation, configuration and migrations. External payment and email calls are mocked.
+
+For the PostgreSQL concurrency path, set `TEST_DATABASE_URL` to a **disposable database whose name ends in `_test`**. Tests create isolated schemas and remove only those schemas afterwards. GitHub Actions supplies PostgreSQL automatically and runs both database variants.
+
+Apply migrations before running a new release: `python -m backend.app.migrate`. This command acquires a PostgreSQL advisory lock so concurrent app starts cannot run migrations simultaneously. Do not run schema changes from individual API requests. Back up an existing database before upgrading.
+
+## Important operational behavior
+
+- An expired/cancelled booking receiving a late payment remains unconfirmed. It is shown as paid, an email asks the guest to contact the resort, and the admin can refund it.
+- Cancellation does **not** imply a refund. Refund amounts and cancellation policy are decisions for the resort administrator.
+- A refund request is committed before contacting Razorpay and uses a stable gateway idempotency key. If the outcome is unknown, further refunds are blocked. Use **Check refund status** in Payments. If no matching receipt is returned, check Razorpay/support before taking further action; do not clear the pending record to blindly retry.
+- Refunds initiated outside this application require manual reconciliation. Their webhooks are not automatically mapped to arbitrary bookings.
+- Email delivery is at least once. Resend receives a stable retry key; SMTP can redeliver after a crash between sending and recording completion. A `sent` outbox status means provider acceptance, not proof of delivery to an inbox.
+- Memory rate limits apply to one process. Configure shared Redis (`RATE_LIMIT_STORAGE_URI`) before adding API workers/replicas or using serverless scaling.
+- Prices are treated as the final booking total in INR. Configure tax-inclusive rates; automated GST invoices, tax calculations, SMS and channel-manager integrations are not implemented.

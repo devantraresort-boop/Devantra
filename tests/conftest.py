@@ -2,20 +2,43 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session, sessionmaker
-
-from backend.app.config import settings
-from backend.app.database import Base, build_engine, get_db
-from backend.app.main import app
-from backend.app.models import Admin, Room, RoomCategory
-from backend.app.security import hash_password
 
 
 @pytest.fixture
 def test_context(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    from fastapi.testclient import TestClient
+    from sqlalchemy.orm import Session, sessionmaker
+
+    from backend.app.config import settings
+    from backend.app.database import Base, build_engine, get_db
+    from backend.app.main import app
+    from backend.app.models import Admin, Room, RoomCategory
+    from backend.app.security import hash_password
+    import os
+    import uuid
+    from sqlalchemy import text
+    from sqlalchemy.engine import make_url
+    from backend.app.limiter import limiter
+    monkeypatch.setattr(limiter, "enabled", False)
+    monkeypatch.setattr(settings, "smtp_host", "")
+    monkeypatch.setattr(settings, "resend_api_key", "")
+    monkeypatch.setattr(settings, "maintenance_secret", "")
+    monkeypatch.setattr(settings, "smtp_from_email", "")
+    monkeypatch.setattr(settings, "razorpay_key_id", "")
+    monkeypatch.setattr(settings, "razorpay_key_secret", "")
     database_path = (tmp_path / "test.sqlite3").as_posix()
-    test_engine = build_engine(f"sqlite:///{database_path}")
+    postgres_url = os.environ.get("TEST_DATABASE_URL")
+    schema = None
+    if postgres_url:
+        if not (make_url(postgres_url).database or "").endswith("_test"):
+            raise RuntimeError("TEST_DATABASE_URL must point to a disposable database ending in _test")
+        raw_engine = build_engine(postgres_url)
+        schema = "test_" + uuid.uuid4().hex
+        with raw_engine.begin() as connection:
+            connection.execute(text(f'CREATE SCHEMA "{schema}"'))
+        test_engine = raw_engine.execution_options(schema_translate_map={None: schema})
+    else:
+        raw_engine = test_engine = build_engine(f"sqlite:///{database_path}")
     Base.metadata.create_all(bind=test_engine)
     test_sessions = sessionmaker(bind=test_engine, autoflush=False, expire_on_commit=False)
 
@@ -50,7 +73,10 @@ def test_context(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         yield {"client": client, "sessions": test_sessions, "room_id": room_id}
     finally:
         app.dependency_overrides.clear()
-        test_engine.dispose()
+        if schema:
+            with raw_engine.begin() as connection:
+                connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
+        raw_engine.dispose()
 
 
 @pytest.fixture

@@ -1,7 +1,9 @@
 import html
 import logging
 import smtplib
+import ssl
 from email.message import EmailMessage
+import httpx
 
 from backend.app.config import settings
 
@@ -9,20 +11,39 @@ from backend.app.config import settings
 logger = logging.getLogger(__name__)
 
 
-def send_email(recipient: str, subject: str, body_html: str, body_text: str) -> bool:
-    if not all((settings.smtp_host, settings.smtp_from_email)):
+def email_configured() -> bool:
+    sender = settings.email_from or settings.smtp_from_email
+    return bool(sender and (settings.resend_api_key or settings.smtp_host))
+
+
+def send_email(recipient: str, subject: str, body_html: str, body_text: str, *, idempotency_key=None) -> bool:
+    sender = settings.email_from or settings.smtp_from_email
+    if settings.resend_api_key and sender:
+        headers = {"Authorization": f"Bearer {settings.resend_api_key}"}
+        if idempotency_key:
+            headers["Idempotency-Key"] = idempotency_key
+        try:
+            response = httpx.post("https://api.resend.com/emails", headers=headers,
+                json={"from": sender, "to": [recipient], "subject": subject,
+                      "html": body_html, "text": body_text}, timeout=15)
+            response.raise_for_status()
+            return bool(response.json().get("id"))
+        except (httpx.HTTPError, ValueError, AttributeError):
+            logger.warning("Email API delivery failed; the outbox will retry.")
+            return False
+    if not all((settings.smtp_host, sender)):
         logger.info("SMTP is not configured; email notification was not sent.")
         return False
     message = EmailMessage()
-    message["Subject"] = subject
-    message["From"] = settings.smtp_from_email
+    message["Subject"] = subject.replace("\r", " ").replace("\n", " ")
+    message["From"] = sender
     message["To"] = recipient
     message.set_content(body_text)
     message.add_alternative(body_html, subtype="html")
     try:
         with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
             if settings.smtp_use_tls:
-                smtp.starttls()
+                smtp.starttls(context=ssl.create_default_context())
             if settings.smtp_username:
                 smtp.login(settings.smtp_username, settings.smtp_password)
             smtp.send_message(message)

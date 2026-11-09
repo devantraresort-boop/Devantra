@@ -44,6 +44,8 @@
           <button type="button" data-panel="enquiries">Enquiries</button>
           <button type="button" data-panel="payments">Payments</button>
           <button type="button" data-panel="content">Site content</button>
+          <button type="button" data-panel="reviews">Reviews</button>
+          <button type="button" data-panel="settings">Settings</button>
           <button type="button" data-panel="activity">Activity log</button>
         </nav>
         <p class="admin-feedback" id="dashboard-feedback" role="status" aria-live="polite"></p>
@@ -136,17 +138,37 @@
               <label class="checkbox-label"><input name="is_published" type="checkbox" /> Publish on website</label>
               <button class="button" type="submit">Add gallery image</button><p class="admin-feedback" data-feedback></p>
             </form>
-            <div class="content-info">
+            <form class="admin-form" id="site-info-form">
               <h3>Public contact information</h3>
-              <p>Business contact details are supplied through the server environment and are read-only here. Update <code>.env</code>, then restart the API.</p>
-              <p id="admin-site-info">Loading public contact details…</p>
-            </div>
+              <label>Resort name<input name="name" required minlength="2" maxlength="120" /></label>
+              <label>Phone<input name="phone" type="tel" maxlength="32" /></label>
+              <label>Contact email<input name="email" type="email" maxlength="254" /></label>
+              <label>Address<textarea name="address" maxlength="1000"></textarea></label>
+              <label>Cancellation and refund policy<textarea name="cancellation_policy" rows="4" maxlength="5000"></textarea></label>
+              <button class="button" type="submit">Save public details</button><p data-feedback role="status"></p>
+            </form>
           </div>
           <div class="admin-two-column">
             <div><h3>Amenities</h3><div id="amenities-list"></div></div>
             <div><h3>Packages</h3><div id="packages-list"></div></div>
             <div><h3>Gallery</h3><div id="gallery-list"></div></div>
           </div>
+        </section>
+
+        <section class="admin-panel admin-content-panel" data-content="reviews" hidden>
+          <div class="admin-panel-heading"><h2>Guest reviews</h2><button class="button button-outline" type="button" data-refresh>Refresh</button></div>
+          <div id="reviews-list"></div>
+        </section>
+        <section class="admin-panel admin-content-panel" data-content="settings" hidden>
+          <h2>Account and notifications</h2>
+          <form class="admin-form" id="password-form">
+            <h3>Change password</h3>
+            <label>Current password<input name="current_password" type="password" autocomplete="current-password" required /></label>
+            <label>New password<input name="new_password" type="password" minlength="12" maxlength="256" autocomplete="new-password" required /></label>
+            <button class="button" type="submit">Change password and sign out</button><p data-feedback role="status"></p>
+          </form>
+          <h3>Email delivery</h3><p id="notification-status" role="status"></p>
+          <button class="button button-outline" id="retry-notifications" type="button">Retry failed notifications</button>
         </section>
 
         <section class="admin-panel admin-content-panel" data-content="activity" hidden>

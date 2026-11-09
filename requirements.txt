@@ -9,4 +9,4 @@ pwdlib[argon2]>=0.2,<1
 slowapi>=0.1.9,<1
 httpx>=0.28,<1
 psycopg[binary]>=3.2,<4
-pytest>=8.3,<9
+redis>=5,<7

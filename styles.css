@@ -346,3 +346,11 @@ h1 em, h2 em { color: var(--gold-light); font-weight: 400; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+
+.booking-management { padding-block: 2rem; }
+.booking-management details { padding: 1rem 0; border-bottom: 1px solid rgba(160, 140, 100, .25); }
+.booking-management summary { cursor: pointer; font-weight: 600; }
+.booking-management .guest-details-form { margin-top: 1rem; }
+.booking-state > button { margin: .5rem .5rem .5rem 0; }
+.review-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; }

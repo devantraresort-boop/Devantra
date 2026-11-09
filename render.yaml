@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: devantara-resort
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m backend.app.migrate && uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT --no-access-log
+    healthCheckPath: /api/health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: MAINTENANCE_SECRET
+        generateValue: true
+      - key: RAZORPAY_TEST_MODE
+        value: "true"

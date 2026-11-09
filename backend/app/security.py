@@ -14,6 +14,7 @@ from backend.app.models import Admin
 
 password_hash = PasswordHash.recommended()
 bearer_scheme = HTTPBearer(auto_error=False)
+dummy_password_hash = password_hash.hash("unused-account-timing-protection")
 
 
 def hash_password(password: str) -> str:
@@ -34,6 +35,9 @@ def create_access_token(admin: Admin) -> str:
     payload = {
         "sub": str(admin.id),
         "role": "admin",
+        "ver": admin.token_version,
+        "iss": "devantara",
+        "aud": "devantara-admin",
         "iat": now,
         "exp": now + timedelta(minutes=settings.jwt_expire_minutes),
     }
@@ -52,14 +56,16 @@ def get_current_admin(
     if credentials is None or not settings.jwt_secret or len(settings.jwt_secret) < 32:
         raise unauthorized
     try:
-        payload = jwt.decode(credentials.credentials, settings.jwt_secret, algorithms=["HS256"])
+        payload = jwt.decode(credentials.credentials, settings.jwt_secret, algorithms=["HS256"],
+                             issuer="devantara", audience="devantara-admin",
+                             options={"require": ["exp", "iat", "sub", "ver", "iss", "aud"]})
         if payload.get("role") != "admin" or not payload.get("sub"):
             raise unauthorized
         admin_id = int(payload["sub"])
     except (jwt.PyJWTError, ValueError, TypeError):
         raise unauthorized from None
     admin = db.scalar(select(Admin).where(Admin.id == admin_id, Admin.is_active.is_(True)))
-    if admin is None:
+    if admin is None or payload.get("ver") != admin.token_version:
         raise unauthorized
     return admin
 

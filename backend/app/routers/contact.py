@@ -1,11 +1,13 @@
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
 from backend.app.config import settings
 from backend.app.database import get_db
-from backend.app.email_service import enquiry_email, send_email
+from backend.app.email_service import enquiry_email
+from backend.app.outbox import enqueue_email
+from backend.app.site_service import site_info
 from backend.app.limiter import limiter
 from backend.app.models import ContactEnquiry
 from backend.app.schemas import ContactCreate
@@ -20,7 +22,6 @@ logger = logging.getLogger(__name__)
 def create_enquiry(
     request: Request,
     payload: ContactCreate,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     if payload.website:
@@ -35,10 +36,10 @@ def create_enquiry(
         message=payload.message,
     )
     db.add(enquiry)
-    db.commit()
-    db.refresh(enquiry)
+    db.flush()
 
-    if settings.admin_contact_email:
+    recipient = site_info(db)["email"]
+    if recipient:
         html_body, text_body = enquiry_email(
             enquiry.name,
             enquiry.email,
@@ -46,13 +47,14 @@ def create_enquiry(
             enquiry.subject,
             enquiry.message,
         )
-        background_tasks.add_task(
-            send_email,
-            settings.admin_contact_email,
+        enqueue_email(
+            db,
+            recipient,
             f"Website enquiry · {settings.resort_name}",
             html_body,
             text_body,
         )
     else:
         logger.info("Contact enquiry %s was stored; no notification recipient is configured.", enquiry.id)
+    db.commit()
     return {"message": "Thank you. Your enquiry has been received.", "enquiry_id": enquiry.id}

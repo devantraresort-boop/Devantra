@@ -21,6 +21,10 @@ const adminApi = async (path, options = {}) => {
     throw new Error("The resort service returned an unreadable response.");
   }
   if (!response.ok) {
+    if (response.status === 401 && path !== "/api/auth/login") {
+      sessionStorage.removeItem("devantara-admin-token");
+      showLogin();
+    }
     const detail = Array.isArray(data?.detail) ? data.detail.map((item) => item.msg).join(" ") : data?.detail;
     throw new Error(detail || "The request could not be completed.");
   }
@@ -32,6 +36,8 @@ const dashboard = document.querySelector("#dashboard");
 const loginFeedback = document.querySelector("#login-feedback");
 const dashboardFeedback = document.querySelector("#dashboard-feedback");
 const logoutButton = document.querySelector("#logout");
+const pageOffsets = {};
+const PAGE_SIZE = 50;
 const currency = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 });
 
 function el(tag, text, className = "") {
@@ -94,7 +100,8 @@ function addTableCell(row, value, strong = false) {
 }
 
 async function loadBookings() {
-  const data = await adminApi("/api/admin/bookings?limit=250");
+  const data = await adminApi(`/api/admin/bookings?limit=${PAGE_SIZE}&offset=${pageOffsets.bookings || 0}`);
+  renderPager("bookings", data.length, loadBookings);
   const table = document.querySelector("#bookings-table");
   table.replaceChildren();
   for (const booking of data) {
@@ -227,12 +234,13 @@ function resetRoomForm() {
 }
 
 async function loadEnquiries() {
-  const data = await adminApi("/api/admin/enquiries?limit=250");
+  const data = await adminApi(`/api/admin/enquiries?limit=${PAGE_SIZE}&offset=${pageOffsets.enquiries || 0}`);
+  renderPager("enquiries", data.length, loadEnquiries);
   const table = document.querySelector("#enquiries-table");
   table.replaceChildren();
   for (const enquiry of data) {
     const row = document.createElement("tr");
-    addTableCell(row, new Date(enquiry.created_at).toLocaleString());
+    addTableCell(row, new Date(`${enquiry.created_at}Z`).toLocaleString());
     addTableCell(row, `${enquiry.name}\n${enquiry.phone || ""}`);
     addTableCell(row, enquiry.email);
     addTableCell(row, `${enquiry.subject}\n${enquiry.message}`);
@@ -253,6 +261,7 @@ async function loadEnquiries() {
           body: JSON.stringify({ status: select.value }),
         });
         await loadOverview();
+        select.disabled = false;
       } catch (error) {
         setDashboardMessage(error.message, true);
         select.disabled = false;
@@ -266,7 +275,8 @@ async function loadEnquiries() {
 }
 
 async function loadPayments() {
-  const data = await adminApi("/api/admin/payments?limit=250");
+  const data = await adminApi(`/api/admin/payments?limit=${PAGE_SIZE}&offset=${pageOffsets.payments || 0}`);
+  renderPager("payments", data.length, loadPayments);
   const table = document.querySelector("#payments-table");
   table.replaceChildren();
   for (const payment of data) {
@@ -288,7 +298,8 @@ async function loadPayments() {
         try {
           await adminApi(`/api/admin/payments/${encodeURIComponent(payment.payment_ref)}/refund`, {
             method: "POST",
-            body: JSON.stringify({ amount: amount.trim() ? Number(amount) : null, reason }),
+            headers: { "Idempotency-Key": refund.dataset.requestKey || (refund.dataset.requestKey = crypto.randomUUID()) },
+            body: JSON.stringify({ amount: amount.trim() ? amount.trim() : null, reason }),
           });
           await loadPayments();
         } catch (error) {
@@ -298,6 +309,18 @@ async function loadPayments() {
       });
       cell.append(refund);
     }
+    if (payment.status === "refund_pending") {
+      const reconcile = el("button", "Check refund status", "button button-outline");
+      reconcile.type = "button";
+      reconcile.addEventListener("click", async () => {
+        reconcile.disabled = true;
+        try {
+          await adminApi(`/api/admin/payments/${encodeURIComponent(payment.payment_ref)}/reconcile-refund`, { method: "POST" });
+          await loadPayments();
+        } catch (error) { setDashboardMessage(error.message, true); reconcile.disabled = false; }
+      });
+      cell.append(reconcile);
+    }
     row.append(cell);
     table.append(row);
   }
@@ -305,12 +328,13 @@ async function loadPayments() {
 }
 
 async function loadActivity() {
-  const data = await adminApi("/api/admin/activity?limit=250");
+  const data = await adminApi(`/api/admin/activity?limit=${PAGE_SIZE}&offset=${pageOffsets.activity || 0}`);
+  renderPager("activity", data.length, loadActivity);
   const table = document.querySelector("#activity-table");
   table.replaceChildren();
   for (const activity of data) {
     const row = document.createElement("tr");
-    addTableCell(row, new Date(activity.created_at).toLocaleString());
+    addTableCell(row, new Date(`${activity.created_at}Z`).toLocaleString());
     addTableCell(row, activity.action);
     addTableCell(row, `${activity.entity_type} · ${activity.entity_id}`);
     addTableCell(row, activity.details);
@@ -384,8 +408,8 @@ async function loadContent() {
       }
     });
   }
-  document.querySelector("#admin-site-info").textContent =
-    [siteInfo.email, siteInfo.phone, siteInfo.address].filter(Boolean).join(" · ") || "No public contact details are configured.";
+  const siteForm = document.querySelector("#site-info-form");
+  for (const field of ["name", "email", "phone", "address", "cancellation_policy"]) siteForm.elements[field].value = siteInfo[field] || "";
 }
 
 const panelLoaders = {
@@ -396,6 +420,8 @@ const panelLoaders = {
   payments: loadPayments,
   content: loadContent,
   activity: loadActivity,
+  reviews: loadReviews,
+  settings: loadSettings,
 };
 
 async function selectPanel(name) {
@@ -437,9 +463,14 @@ document.querySelector("#login-form").addEventListener("submit", async (event) =
   }
 });
 
-logoutButton.addEventListener("click", () => {
-  sessionStorage.removeItem("devantara-admin-token");
-  showLogin();
+logoutButton.addEventListener("click", async () => {
+  logoutButton.disabled = true;
+  try {
+    await adminApi("/api/auth/logout", { method: "POST" });
+    sessionStorage.removeItem("devantara-admin-token");
+    showLogin();
+  } catch (error) { setDashboardMessage(`Sign out could not be completed: ${error.message}`, true); }
+  finally { logoutButton.disabled = false; }
 });
 
 document.querySelectorAll(".admin-tabs button").forEach((button) => {
@@ -580,3 +611,88 @@ async function restoreSession() {
 }
 
 restoreSession();
+
+
+function renderPager(panel, count, loader) {
+  const container = document.querySelector(`[data-content="${panel}"]`);
+  container.querySelector(".pagination")?.remove();
+  const pager = el("div", undefined, "pagination admin-form-actions");
+  const offset = pageOffsets[panel] || 0;
+  const previous = el("button", "Previous", "button button-outline");
+  const next = el("button", "Next", "button button-outline");
+  previous.type = next.type = "button";
+  previous.disabled = offset === 0;
+  next.disabled = count < PAGE_SIZE;
+  for (const [button, direction] of [[previous, -1], [next, 1]]) {
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      pageOffsets[panel] = Math.max(0, offset + direction * PAGE_SIZE);
+      try { await loader(); }
+      catch (error) { pageOffsets[panel] = offset; setDashboardMessage(error.message, true); button.disabled = false; }
+    });
+  }
+  pager.append(previous, el("span", `Page ${offset / PAGE_SIZE + 1}`), next);
+  container.append(pager);
+}
+
+async function loadReviews() {
+  const rows = await adminApi(`/api/admin/reviews?limit=${PAGE_SIZE}&offset=${pageOffsets.reviews || 0}`);
+  const list = document.querySelector("#reviews-list");
+  list.replaceChildren();
+  if (!rows.length) list.append(el("p", "No reviews on this page."));
+  for (const review of rows) {
+    contentRow(list, `${review.guest_name} · ${review.rating}/5`, review.comment,
+      review.is_published ? "Unpublish" : "Publish", async () => {
+        try {
+          await adminApi(`/api/admin/reviews/${review.id}/publish?is_published=${!review.is_published}`, { method: "PUT" });
+          await loadReviews();
+        } catch (error) { setDashboardMessage(error.message, true); }
+      });
+  }
+  renderPager("reviews", rows.length, loadReviews);
+}
+
+async function loadSettings() {
+  const status = await adminApi("/api/admin/notifications");
+  const counts = status.counts;
+  document.querySelector("#notification-status").textContent =
+    `${status.email_configured ? "Email delivery configured." : "Email delivery is not configured; messages remain queued."} ` +
+    `Queued: ${counts.pending || 0}. Sending: ${counts.sending || 0}. Sent: ${counts.sent || 0}. Failed: ${counts.failed || 0}.`;
+}
+
+document.querySelector("#site-info-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button");
+  button.disabled = true;
+  try {
+    await adminApi("/api/admin/site-info", { method: "PUT", body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+    setFormMessage(form, "Public details saved.");
+  } catch (error) { setFormMessage(form, error.message, true); }
+  finally { button.disabled = false; }
+});
+
+document.querySelector("#password-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button");
+  button.disabled = true;
+  try {
+    await adminApi("/api/auth/password", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+    sessionStorage.removeItem("devantara-admin-token");
+    form.reset();
+    showLogin();
+    loginFeedback.textContent = "Password changed. Sign in with your new password.";
+  } catch (error) { setFormMessage(form, error.message, true); }
+  finally { button.disabled = false; }
+});
+
+document.querySelector("#retry-notifications").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  try {
+    await adminApi("/api/admin/notifications/retry", { method: "POST" });
+    await loadSettings();
+  } catch (error) { setDashboardMessage(error.message, true); }
+  finally { button.disabled = false; }
+});

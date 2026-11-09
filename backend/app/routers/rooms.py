@@ -1,13 +1,12 @@
-from datetime import date, datetime
-from decimal import Decimal
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from backend.app.booking_service import is_available, quote_total
+from backend.app.booking_service import resort_today, room_quotes
 from backend.app.database import get_db
-from backend.app.models import Amenity, Booking, GalleryImage, Package, Review, Room, RoomAvailability, RoomCategory
+from backend.app.models import Amenity, Booking, GalleryImage, Package, Review, Room
 from backend.app.schemas import AvailableRoom, ReviewCreate, RoomOut
 
 
@@ -61,7 +60,7 @@ def public_amenities(db: Session = Depends(get_db)):
 
 @router.get("/packages")
 def public_packages(db: Session = Depends(get_db)):
-    today = date.today()
+    today = resort_today()
     rows = db.scalars(
         select(Package)
         .where(
@@ -117,10 +116,12 @@ def create_review(payload: ReviewCreate, db: Session = Depends(get_db)):
             Booking.booking_ref == payload.booking_ref,
             Booking.guest_email == str(payload.email).lower(),
             Booking.status == "confirmed",
-        )
+        ).with_for_update(of=Booking)
     )
     if booking is None:
         raise HTTPException(status_code=404, detail="Confirmed booking not found.")
+    if booking.check_out > resort_today():
+        raise HTTPException(status_code=409, detail="Reviews can be submitted after checkout.")
     if db.scalar(select(Review.id).where(Review.booking_id == booking.id)):
         raise HTTPException(status_code=409, detail="A review has already been submitted for this booking.")
     review = Review(
@@ -148,7 +149,7 @@ def get_availability(
         raise HTTPException(status_code=422, detail="Check-out must be after check-in.")
     if (check_out - check_in).days > 365:
         raise HTTPException(status_code=422, detail="A stay cannot be longer than 365 nights.")
-    today = date.today()
+    today = resort_today()
     if check_in < today:
         raise HTTPException(status_code=422, detail="Check-in cannot be in the past.")
 
@@ -161,11 +162,12 @@ def get_availability(
             Room.capacity_children >= children,
         )
     ).all()
+    quotes = room_quotes(db, list(rooms), check_in, check_out)
     matching = []
     for room in rooms:
-        if not is_available(db, room, check_in, check_out):
+        if room.id not in quotes:
             continue
         nights = (check_out - check_in).days
-        total = quote_total(db, room, check_in, check_out)
+        total = quotes[room.id]
         matching.append({**_room_out(room), "nights": nights, "total_amount": total})
     return matching

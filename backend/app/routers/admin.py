@@ -1,12 +1,15 @@
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from backend.app.database import get_db
-from backend.app.email_service import booking_status_email, send_email
+from backend.app.email_service import booking_status_email, email_configured
+from backend.app.outbox import enqueue_email
+from backend.app.booking_service import active_bookings, occupancy_peak, resort_today
+from backend.app.routers.bookings import _out as booking_out
 from backend.app.config import settings
 from backend.app.models import (
     Admin,
@@ -21,6 +24,8 @@ from backend.app.models import (
     RoomAvailability,
     RoomCategory,
     Review,
+    SiteSettings,
+    EmailOutbox,
 )
 from backend.app.schemas import (
     AmenityUpdate,
@@ -35,6 +40,7 @@ from backend.app.schemas import (
     RoomCreate,
     RoomUpdate,
     GalleryUpdate,
+    SiteSettingsUpdate,
 )
 from backend.app.security import require_admin
 from backend.app.routers.rooms import _room_out
@@ -57,8 +63,10 @@ def _activity(db: Session, admin: Admin, action: str, entity_type: str, entity_i
 
 @router.get("/dashboard")
 def dashboard(db: Session = Depends(get_db), _admin: Admin = Depends(require_admin)):
-    today = date.today()
-    start = datetime.combine(today, time.min)
+    today = resort_today()
+    from zoneinfo import ZoneInfo
+    from datetime import timezone
+    start = datetime.combine(today, time.min, tzinfo=ZoneInfo(settings.resort_timezone)).astimezone(timezone.utc).replace(tzinfo=None)
     end = start + timedelta(days=1)
     total_bookings = db.scalar(select(func.count(Booking.id))) or 0
     today_bookings = db.scalar(select(func.count(Booking.id)).where(Booking.created_at >= start, Booking.created_at < end)) or 0
@@ -142,10 +150,21 @@ def update_room(
     db: Session = Depends(get_db),
     admin: Admin = Depends(require_admin),
 ):
-    room = db.scalar(select(Room).options(joinedload(Room.category)).where(Room.id == room_id))
+    room = db.scalar(select(Room).where(Room.id == room_id).with_for_update(of=Room))
     if room is None:
         raise HTTPException(status_code=404, detail="Room not found.")
     changes = payload.model_dump(exclude_unset=True)
+    stays = db.execute(select(Booking.check_in, Booking.check_out, Booking.adults, Booking.children).where(
+        Booking.room_id == room_id, Booking.check_out > resort_today(), active_bookings(datetime.utcnow()),
+    )).all()
+    if stays:
+        last = max(row.check_out for row in stays)
+        peak = occupancy_peak([(row.check_in, row.check_out) for row in stays], resort_today(), last)
+        if changes.get("inventory", room.inventory) < peak:
+            raise HTTPException(status_code=409, detail="Inventory cannot be reduced below existing reservations.")
+        if any(row.adults > changes.get("capacity_adults", room.capacity_adults) or
+               row.children > changes.get("capacity_children", room.capacity_children) for row in stays):
+            raise HTTPException(status_code=409, detail="Capacity cannot be reduced below existing reservations.")
     if "category_id" in changes and db.get(RoomCategory, changes["category_id"]) is None:
         raise HTTPException(status_code=422, detail="Room category not found.")
     for field, value in changes.items():
@@ -158,7 +177,7 @@ def update_room(
 
 @router.delete("/rooms/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
 def archive_room(room_id: int, db: Session = Depends(get_db), admin: Admin = Depends(require_admin)):
-    room = db.get(Room, room_id)
+    room = db.scalar(select(Room).where(Room.id == room_id).with_for_update(of=Room))
     if room is None:
         raise HTTPException(status_code=404, detail="Room not found.")
     room.is_active = False
@@ -172,7 +191,7 @@ def update_availability(
     db: Session = Depends(get_db),
     admin: Admin = Depends(require_admin),
 ):
-    room = db.get(Room, payload.room_id)
+    room = db.scalar(select(Room).where(Room.id == payload.room_id).with_for_update(of=Room))
     if room is None:
         raise HTTPException(status_code=404, detail="Room not found.")
     day_count = (payload.end_date - payload.start_date).days + 1
@@ -196,13 +215,11 @@ def update_availability(
         if conflict is not None:
             raise HTTPException(status_code=409, detail="Cannot close dates that overlap an active booking.")
 
+    existing = {row.stay_date: row for row in db.scalars(select(RoomAvailability).where(
+        RoomAvailability.room_id == room.id, RoomAvailability.stay_date >= payload.start_date,
+        RoomAvailability.stay_date <= payload.end_date))}
     for stay_date in dates:
-        record = db.scalar(
-            select(RoomAvailability).where(
-                RoomAvailability.room_id == room.id,
-                RoomAvailability.stay_date == stay_date,
-            )
-        )
+        record = existing.get(stay_date)
         if record is None:
             record = RoomAvailability(room_id=room.id, stay_date=stay_date)
             db.add(record)
@@ -225,14 +242,20 @@ def update_availability(
 def admin_bookings(
     status_filter: str | None = Query(default=None, alias="status"),
     limit: int = Query(default=100, ge=1, le=250),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     _admin: Admin = Depends(require_admin),
 ):
-    query = select(Booking).options(joinedload(Booking.room)).order_by(Booking.created_at.desc()).limit(limit)
+    query = select(Booking).options(joinedload(Booking.room)).order_by(Booking.created_at.desc(), Booking.id.desc()).offset(offset).limit(limit)
     if status_filter:
         if status_filter not in {"pending_payment", "confirmed", "cancelled", "expired"}:
             raise HTTPException(status_code=422, detail="Unknown booking status.")
-        query = query.where(Booking.status == status_filter)
+        if status_filter == "expired":
+            query = query.where((Booking.status == "expired") | ((Booking.status == "pending_payment") & (Booking.expires_at <= datetime.utcnow())))
+        elif status_filter == "pending_payment":
+            query = query.where(Booking.status == status_filter, Booking.expires_at > datetime.utcnow())
+        else:
+            query = query.where(Booking.status == status_filter)
     rows = db.scalars(query).unique().all()
     return [
         {
@@ -246,7 +269,7 @@ def admin_bookings(
             "adults": row.adults,
             "children": row.children,
             "total_amount": row.total_amount,
-            "status": row.status,
+            "status": booking_out(row)["status"],
             "payment_status": row.payment_status,
             "created_at": row.created_at,
         }
@@ -258,12 +281,11 @@ def admin_bookings(
 def admin_cancel_booking(
     booking_ref: str,
     payload: BookingCancellation,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     admin: Admin = Depends(require_admin),
 ):
     booking = db.scalar(
-        select(Booking).options(joinedload(Booking.room)).where(Booking.booking_ref == booking_ref).with_for_update()
+        select(Booking).options(joinedload(Booking.room)).where(Booking.booking_ref == booking_ref).with_for_update(of=Booking)
     )
     if booking is None:
         raise HTTPException(status_code=404, detail="Booking not found.")
@@ -273,20 +295,20 @@ def admin_cancel_booking(
     booking.cancellation_reason = payload.reason or "Cancelled by resort administrator."
     booking.updated_at = datetime.utcnow()
     _activity(db, admin, "booking.cancel", "booking", booking.booking_ref, booking.cancellation_reason)
-    db.commit()
     html_body, text_body = booking_status_email(
         booking.guest_name,
         booking.booking_ref,
         "Your booking was cancelled by the resort",
         booking.cancellation_reason,
     )
-    background_tasks.add_task(
-        send_email,
+    enqueue_email(
+        db,
         booking.guest_email,
         f"Booking cancelled · {settings.resort_name}",
         html_body,
         text_body,
     )
+    db.commit()
     return {"booking_ref": booking.booking_ref, "status": booking.status, "payment_status": booking.payment_status}
 
 
@@ -294,10 +316,11 @@ def admin_cancel_booking(
 def admin_enquiries(
     status_filter: str | None = Query(default=None, alias="status"),
     limit: int = Query(default=100, ge=1, le=250),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     _admin: Admin = Depends(require_admin),
 ):
-    query = select(ContactEnquiry).order_by(ContactEnquiry.created_at.desc()).limit(limit)
+    query = select(ContactEnquiry).order_by(ContactEnquiry.created_at.desc(), ContactEnquiry.id.desc()).offset(offset).limit(limit)
     if status_filter:
         query = query.where(ContactEnquiry.status == status_filter)
     return db.scalars(query).all()
@@ -328,7 +351,7 @@ def admin_amenities(db: Session = Depends(get_db), _admin: Admin = Depends(requi
 def create_amenity(payload: ContentCreate, db: Session = Depends(get_db), admin: Admin = Depends(require_admin)):
     if db.scalar(select(Amenity.id).where(Amenity.name == payload.name)):
         raise HTTPException(status_code=409, detail="Amenity already exists.")
-    amenity = Amenity(name=payload.name, description=payload.description, is_active=payload.is_active)
+    amenity = Amenity(name=payload.name, description=payload.description, icon=payload.icon, is_active=payload.is_active)
     db.add(amenity)
     db.flush()
     _activity(db, admin, "amenity.create", "amenity", str(amenity.id))
@@ -459,8 +482,9 @@ def unpublish_gallery_image(image_id: int, db: Session = Depends(get_db), admin:
 
 
 @router.get("/reviews")
-def admin_reviews(db: Session = Depends(get_db), _admin: Admin = Depends(require_admin)):
-    return db.scalars(select(Review).order_by(Review.created_at.desc())).all()
+def admin_reviews(limit: int = Query(default=100, ge=1, le=250), offset: int = Query(default=0, ge=0),
+                  db: Session = Depends(get_db), _admin: Admin = Depends(require_admin)):
+    return db.scalars(select(Review).order_by(Review.created_at.desc(), Review.id.desc()).offset(offset).limit(limit)).all()
 
 
 @router.put("/reviews/{review_id}/publish")
@@ -482,7 +506,48 @@ def publish_review(
 @router.get("/activity")
 def admin_activity(
     limit: int = Query(default=100, ge=1, le=250),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     _admin: Admin = Depends(require_admin),
 ):
-    return db.scalars(select(AdminActivityLog).order_by(AdminActivityLog.created_at.desc()).limit(limit)).all()
+    return db.scalars(select(AdminActivityLog).order_by(AdminActivityLog.created_at.desc(), AdminActivityLog.id.desc()).offset(offset).limit(limit)).all()
+
+
+@router.put("/site-info")
+def update_site_info(payload: SiteSettingsUpdate, db: Session = Depends(get_db), admin: Admin = Depends(require_admin)):
+    record = db.scalar(select(SiteSettings).where(SiteSettings.id == 1).with_for_update())
+    if record is None:
+        record = SiteSettings(id=1, **payload.model_dump())
+        db.add(record)
+    else:
+        for field, value in payload.model_dump().items():
+            setattr(record, field, value)
+    _activity(db, admin, "site.update", "site_settings", "1")
+    db.commit()
+    return payload.model_dump()
+
+
+@router.get("/availability")
+def availability_calendar(room_id: int, start_date: date, end_date: date,
+                          db: Session = Depends(get_db), _admin: Admin = Depends(require_admin)):
+    if end_date < start_date or (end_date - start_date).days > 730:
+        raise HTTPException(status_code=422, detail="Choose a date range of at most two years.")
+    return db.scalars(select(RoomAvailability).where(RoomAvailability.room_id == room_id,
+        RoomAvailability.stay_date >= start_date, RoomAvailability.stay_date <= end_date)
+        .order_by(RoomAvailability.stay_date)).all()
+
+
+@router.get("/notifications")
+def notification_status(db: Session = Depends(get_db), _admin: Admin = Depends(require_admin)):
+    counts = dict(db.execute(select(EmailOutbox.status, func.count()).group_by(EmailOutbox.status)).all())
+    return {"email_configured": email_configured(), "counts": counts}
+
+
+@router.post("/notifications/retry")
+def retry_notifications(db: Session = Depends(get_db), admin: Admin = Depends(require_admin)):
+    from sqlalchemy import update
+    result = db.execute(update(EmailOutbox).where(EmailOutbox.status == "failed")
+        .values(status="pending", attempts=0, available_at=datetime.utcnow(), lease_token=None))
+    _activity(db, admin, "notifications.retry", "email_outbox", "", f"{result.rowcount} messages queued")
+    db.commit()
+    return {"queued": result.rowcount}

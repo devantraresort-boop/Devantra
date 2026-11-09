@@ -35,6 +35,7 @@
         <a href="#visit">Visit</a>
         <a href="#about">About</a>
         <a href="#contact">Contact</a>
+        <a href="#manage-booking">My booking</a>
         <a class="button button-small nav-book" href="#booking">Book now</a>
       </nav>
     </header>
@@ -84,6 +85,19 @@
         <a class="scroll-cue" href="#about" aria-label="Scroll to discover"><span></span></a>
       </section>
       <section class="booking-results page-width" id="booking-results" aria-live="polite" aria-label="Available rooms"></section>
+
+      <section class="page-width booking-management" id="manage-booking">
+        <details>
+          <summary>Already booked? View or manage your booking</summary>
+          <form class="guest-details-form" id="manage-booking-form">
+            <label>Booking reference<input name="booking_ref" required minlength="32" maxlength="32" autocomplete="off" /></label>
+            <label>Booking email<input name="email" type="email" required autocomplete="email" /></label>
+            <button class="button" type="submit">Find my booking</button>
+            <p class="form-feedback" role="status" aria-live="polite"></p>
+          </form>
+        </details>
+        <details><summary>Cancellation and refund terms</summary><p id="cancellation-policy">Contact the resort for cancellation and refund terms before booking.</p></details>
+      </section>
 
       <section class="intro section page-width" id="about">
         <div class="intro-image image-frame">
@@ -202,6 +216,11 @@
             <span class="visit-stamp">Devantara<br /><small>Resort</small></span>
           </div>
         </div>
+      </section>
+
+      <section class="section page-width" id="guest-reviews" hidden>
+        <p class="eyebrow">From our guests</p><h2>Guest <em>reviews</em></h2>
+        <div class="review-list"></div>
       </section>
 
       <section class="contact-section section page-width" id="contact">

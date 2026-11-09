@@ -20,7 +20,8 @@ def ensure_razorpay_configured() -> None:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Online payments are not configured. Contact the resort to complete this booking.",
         )
-    if settings.razorpay_test_mode and not settings.razorpay_key_id.startswith("rzp_test_"):
+    prefix = "rzp_test_" if settings.razorpay_test_mode else "rzp_live_"
+    if not settings.razorpay_key_id.startswith(prefix):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Test mode is enabled, but the configured key is not a Razorpay test key.",
@@ -36,7 +37,10 @@ def razorpay_request(method: str, path: str, **kwargs) -> dict:
         ) as client:
             response = client.request(method, f"{RAZORPAY_API}{path}", **kwargs)
             response.raise_for_status()
-            return response.json()
+            payload = response.json()
+            if not isinstance(payload, dict):
+                raise ValueError("Invalid gateway response")
+            return payload
     except httpx.HTTPStatusError as exc:
         logger.warning("Razorpay request failed with status %s.", exc.response.status_code)
         raise HTTPException(status_code=502, detail="Payment provider rejected the request.") from None
@@ -51,7 +55,7 @@ def verify_checkout_signature(order_id: str, payment_id: str, signature: str) ->
         f"{order_id}|{payment_id}".encode(),
         hashlib.sha256,
     ).hexdigest()
-    return hmac.compare_digest(expected, signature)
+    return signature.isascii() and hmac.compare_digest(expected, signature)
 
 
 def verify_webhook_signature(body: bytes, signature: str | None) -> bool:
@@ -62,7 +66,7 @@ def verify_webhook_signature(body: bytes, signature: str | None) -> bool:
         body,
         hashlib.sha256,
     ).hexdigest()
-    return hmac.compare_digest(expected, signature)
+    return signature.isascii() and hmac.compare_digest(expected, signature)
 
 
 def to_paise(amount: Decimal) -> int:
