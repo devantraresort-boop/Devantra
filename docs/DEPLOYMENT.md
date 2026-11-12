@@ -36,6 +36,8 @@ Sources: [Render FastAPI](https://render.com/docs/deploy-fastapi), [Render Free 
 
 The repository declares `backend.app.main:app` in `pyproject.toml`; `vercel.json` selects FastAPI. The existing website assets are served by explicit application routes. No directory listing or source-folder static mount is exposed.
 
+Vercel installs Python dependencies from `pyproject.toml` when that file exists. Keep its `[project].dependencies` aligned with `requirements.txt`, which is used by the local, Docker and Render setup.
+
 1. Import the GitHub repository into Vercel using the FastAPI framework.
 2. Set the production variables above with the actual Vercel/custom domain, and set `DATABASE_NULL_POOL=true` with Neon's pooled PostgreSQL URL. Never use SQLite or a local disk database on Vercel.
 3. Apply migrations once from a trusted machine/CI environment with production `DATABASE_URL_UNPOOLED` set to Neon's direct connection URL: `python -m backend.app.migrate`. Both this command and Alembic prefer the direct URL; runtime queries keep using the pooled `DATABASE_URL`. The app reads `.env.local` after `.env`, with process environment variables taking precedence. Do this before sending traffic to the new version; the Vercel function does not migrate on cold start.
