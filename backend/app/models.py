@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, LargeBinary, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.base import Base
@@ -68,6 +68,23 @@ class Room(Base):
     category: Mapped[RoomCategory] = relationship(back_populates="rooms")
     availability: Mapped[list["RoomAvailability"]] = relationship(back_populates="room", cascade="all, delete-orphan")
     bookings: Mapped[list["Booking"]] = relationship(back_populates="room")
+    photos: Mapped[list["RoomPhoto"]] = relationship(back_populates="room", cascade="all, delete-orphan", order_by="RoomPhoto.position", lazy="selectin")
+
+
+class RoomPhoto(Base):
+    __tablename__ = "room_photos"
+    __table_args__ = (CheckConstraint("position >= 0 AND position < 5", name="ck_room_photo_position"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(Integer)
+    external_url: Mapped[str] = mapped_column(String(500), default="")
+    content: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True, deferred=True)
+    room: Mapped[Room] = relationship(back_populates="photos")
+
+    @property
+    def url(self) -> str:
+        return self.external_url or f"/api/room-photos/{self.id}"
 
 
 class RoomAvailability(Base):

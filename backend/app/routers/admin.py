@@ -1,3 +1,4 @@
+from backend.app.room_photos import set_room_photos
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
@@ -134,7 +135,9 @@ def create_room(payload: RoomCreate, db: Session = Depends(get_db), admin: Admin
     category = db.get(RoomCategory, payload.category_id)
     if category is None:
         raise HTTPException(status_code=422, detail="Room category not found.")
-    room = Room(**payload.model_dump())
+    values = payload.model_dump(exclude={"photos"})
+    room = Room(**values)
+    set_room_photos(room, payload.photos if payload.photos is not None else ([payload.image_url] if payload.image_url else []))
     db.add(room)
     db.flush()
     _activity(db, admin, "room.create", "room", str(room.id))
@@ -167,6 +170,12 @@ def update_room(
             raise HTTPException(status_code=409, detail="Capacity cannot be reduced below existing reservations.")
     if "category_id" in changes and db.get(RoomCategory, changes["category_id"]) is None:
         raise HTTPException(status_code=422, detail="Room category not found.")
+    photos = changes.pop("photos", None)
+    if photos is not None:
+        set_room_photos(room, photos)
+        changes.pop("image_url", None)
+    elif "image_url" in changes and changes["image_url"] != room.image_url:
+        set_room_photos(room, [changes["image_url"]] if changes["image_url"] else [])
     for field, value in changes.items():
         setattr(room, field, value)
     _activity(db, admin, "room.update", "room", str(room.id))

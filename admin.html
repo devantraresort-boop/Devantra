@@ -83,7 +83,17 @@
               </div>
               <label>Description<textarea name="description" rows="3" maxlength="4000"></textarea></label>
               <label>Amenities (comma-separated)<input name="amenities" maxlength="2000" /></label>
-              <label>Image URL<input name="image_url" type="url" maxlength="500" /></label>
+              <fieldset class="room-photo-field">
+                <legend>Room photos <span id="room-photo-count">0 / 5</span></legend>
+                <p id="room-photo-help">Add up to 5 photos. Choose a main photo for your room listing.</p>
+                <input id="room-photo-input" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden />
+                <div id="room-photo-list" class="room-photo-grid"></div>
+                <button id="room-photo-add" class="room-photo-add" type="button" aria-describedby="room-photo-help">
+                  <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20 6H6a2 2 0 0 0-2 2v18a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V15"/><path d="m5 23 7-8 5 5 3-3 6 7M26 2v8m-4-4h8"/><circle cx="11" cy="11" r="2"/></svg>
+                  <span>Add images<small>JPG, PNG or WebP · up to 10 MB each</small></span>
+                </button>
+                <p id="room-photo-status" role="status" aria-live="polite"></p>
+              </fieldset>
               <div class="admin-form-actions"><button class="button" type="submit" id="room-submit">Create room</button><button class="button button-outline" type="button" id="room-edit-cancel" hidden>Cancel edit</button></div>
               <p class="admin-feedback" data-feedback></p>
             </form>

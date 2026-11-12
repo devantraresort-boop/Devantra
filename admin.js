@@ -203,7 +203,103 @@ async function loadRooms() {
   if (!rooms.length) table.append(emptyRow(6, "Create a room category, then add a room with your verified rate and capacity."));
 }
 
+let roomPhotos = [];
+let roomPhotosBusy = false;
+let roomSaving = false;
+
+function renderRoomPhotos() {
+  const list = document.querySelector("#room-photo-list");
+  list.replaceChildren();
+  document.querySelector("#room-photo-count").textContent = `${roomPhotos.length} / 5`;
+  const busy = roomPhotosBusy || roomSaving;
+  document.querySelector("#room-photo-add").disabled = busy || roomPhotos.length >= 5;
+  document.querySelector("#room-submit").disabled = busy;
+  document.querySelector("#room-edit-cancel").disabled = busy;
+  roomPhotos.forEach((url, index) => {
+    const card = el("div", undefined, `room-photo-card${index === 0 ? " is-main" : ""}`);
+    const image = el("img");
+    image.src = url;
+    image.alt = `Room photo ${index + 1}${index === 0 ? ", main photo" : ""}`;
+    const main = el("button", index === 0 ? "★ Main photo" : "Set as main", "room-photo-main");
+    main.type = "button";
+    main.disabled = busy;
+    main.setAttribute("aria-pressed", String(index === 0));
+    main.addEventListener("click", () => {
+      roomPhotos.unshift(roomPhotos.splice(index, 1)[0]);
+      renderRoomPhotos();
+      document.querySelector(".room-photo-main").focus();
+    });
+    const remove = el("button", "×", "room-photo-remove");
+    remove.type = "button";
+    remove.disabled = busy;
+    remove.setAttribute("aria-label", `Remove photo ${index + 1}`);
+    remove.addEventListener("click", () => {
+      roomPhotos.splice(index, 1);
+      renderRoomPhotos();
+      document.querySelector("#room-photo-add").focus();
+    });
+    card.append(image, main, remove);
+    list.append(card);
+  });
+}
+
+async function prepareRoomPhoto(file) {
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    throw new Error("Choose JPG, PNG or WebP photos.");
+  }
+  if (file.size > 10 * 1024 * 1024) throw new Error("Each original photo must be 10 MB or smaller.");
+  const data = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Could not read this photo. Please try again."));
+    reader.readAsDataURL(file);
+  });
+  const image = new Image();
+  image.src = data;
+  try { await image.decode(); } catch { throw new Error("This photo could not be opened. Choose another image."); }
+  const scale = Math.min(1, 1600 / Math.max(image.naturalWidth, image.naturalHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  for (const quality of [0.84, 0.72, 0.6, 0.45]) {
+    const result = canvas.toDataURL("image/jpeg", quality);
+    if (result.length <= 680000) return result;
+  }
+  throw new Error("This photo is too detailed to upload. Please use a smaller image.");
+}
+
+document.querySelector("#room-photo-add").addEventListener("click", () => document.querySelector("#room-photo-input").click());
+document.querySelector("#room-photo-input").addEventListener("change", async (event) => {
+  const files = [...event.target.files];
+  event.target.value = "";
+  const status = document.querySelector("#room-photo-status");
+  if (roomPhotosBusy || roomSaving || !files.length) return;
+  if (files.length + roomPhotos.length > 5) {
+    status.textContent = `You can add ${5 - roomPhotos.length} more photo(s). Maximum 5 per room.`;
+    return;
+  }
+  roomPhotosBusy = true;
+  renderRoomPhotos();
+  status.textContent = "Preparing your photos…";
+  try {
+    const prepared = [];
+    for (const file of files) prepared.push(await prepareRoomPhoto(file));
+    roomPhotos = [...new Set([...roomPhotos, ...prepared])];
+    status.textContent = "Photos ready. Save the room to keep your changes.";
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    roomPhotosBusy = false;
+    renderRoomPhotos();
+  }
+});
+
 function editRoom(room) {
+  if (roomPhotosBusy || roomSaving) return;
   const form = document.querySelector("#room-form");
   form.elements.room_id.value = room.id;
   form.elements.name.value = room.name;
@@ -214,7 +310,9 @@ function editRoom(room) {
   form.elements.inventory.value = room.inventory;
   form.elements.description.value = room.description || "";
   form.elements.amenities.value = room.amenities || "";
-  form.elements.image_url.value = room.image_url || "";
+  document.querySelector("#room-photo-status").textContent = "";
+  roomPhotos = [...(room.photos || (room.image_url ? [room.image_url] : []))];
+  renderRoomPhotos();
   form.querySelector("#room-form-title").textContent = `Edit ${room.name}`;
   form.querySelector("#room-submit").textContent = "Save changes";
   form.querySelector("#room-edit-cancel").hidden = false;
@@ -224,6 +322,9 @@ function editRoom(room) {
 function resetRoomForm() {
   const form = document.querySelector("#room-form");
   form.reset();
+  roomPhotos = [];
+  document.querySelector("#room-photo-status").textContent = "";
+  renderRoomPhotos();
   form.elements.room_id.value = "";
   form.querySelector("#room-form-title").textContent = "Add a room";
   form.querySelector("#room-submit").textContent = "Create room";
@@ -502,11 +603,15 @@ document.querySelector("#category-form").addEventListener("submit", async (event
 document.querySelector("#room-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
+  if (roomPhotosBusy || roomSaving) return;
   const fields = Object.fromEntries(new FormData(form));
+  fields.photos = [...roomPhotos];
   const roomId = fields.room_id;
   delete fields.room_id;
   for (const key of ["category_id", "capacity_adults", "capacity_children", "inventory"]) fields[key] = Number(fields[key]);
   fields.base_rate = Number(fields.base_rate);
+  roomSaving = true;
+  renderRoomPhotos();
   try {
     const result = await adminApi(roomId ? `/api/admin/rooms/${roomId}` : "/api/admin/rooms", {
       method: roomId ? "PUT" : "POST",
@@ -517,10 +622,15 @@ document.querySelector("#room-form").addEventListener("submit", async (event) =>
     await loadRooms();
   } catch (error) {
     setFormMessage(form, error.message, true);
+  } finally {
+    roomSaving = false;
+    renderRoomPhotos();
   }
 });
 
-document.querySelector("#room-edit-cancel").addEventListener("click", resetRoomForm);
+document.querySelector("#room-edit-cancel").addEventListener("click", () => {
+  if (!roomPhotosBusy && !roomSaving) resetRoomForm();
+});
 
 document.querySelector("#availability-form").addEventListener("submit", async (event) => {
   event.preventDefault();

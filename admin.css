@@ -64,3 +64,24 @@
 }
 
 .pagination { align-items: center; margin-top: 1.5rem; gap: 1rem; }
+
+.room-photo-field { min-width: 0; margin: 0; padding: 15px; border: 1px solid var(--line); border-radius: 8px; }
+.room-photo-field legend { padding: 0 7px; color: var(--text); font-size: 12px; }
+#room-photo-count { margin-left: 8px; color: var(--gold-light); font-size: 11px; }
+#room-photo-help, #room-photo-status { margin: 0 0 12px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+#room-photo-status { margin: 10px 0 0; color: var(--gold-light); }
+#room-photo-status:empty { display: none; }
+.room-photo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 10px; }
+.room-photo-card { position: relative; min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: #0a1118; }
+.room-photo-card.is-main { border: 2px solid var(--gold); box-shadow: 0 0 0 2px rgba(193, 157, 100, .12); }
+.room-photo-card img { display: block; width: 100%; aspect-ratio: 4/3; object-fit: cover; }
+.room-photo-main { display: block; width: 100%; min-height: 36px; padding: 7px 3px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 10px; cursor: pointer; }
+.is-main .room-photo-main { color: var(--ink); background: var(--gold-light); font-weight: 600; }
+.room-photo-remove { position: absolute; top: 5px; right: 5px; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 50%; background: #0a1118e6; color: white; font-size: 22px; line-height: 1; cursor: pointer; }
+.room-photo-add { display: flex; align-items: center; justify-content: center; gap: 13px; width: 100%; margin-top: 12px; padding: 18px 12px; border: 1px dashed var(--gold); border-radius: 7px; background: rgba(193, 157, 100, .05); color: var(--gold-light); font: inherit; font-size: 13px; cursor: pointer; }
+.room-photo-add svg { width: 34px; height: 34px; flex-shrink: 0; }
+.room-photo-add span { text-align: left; }
+.room-photo-add small { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; }
+.room-photo-add:hover:not(:disabled) { background: rgba(193, 157, 100, .12); }
+.room-photo-field button:focus-visible { outline: 2px solid var(--gold-light); outline-offset: 3px; }
+.room-photo-field button:disabled, #room-submit:disabled { opacity: .55; cursor: wait; }

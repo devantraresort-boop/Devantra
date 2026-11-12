@@ -1,12 +1,12 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from backend.app.booking_service import resort_today, room_quotes
 from backend.app.database import get_db
-from backend.app.models import Amenity, Booking, GalleryImage, Package, Review, Room
+from backend.app.models import Amenity, Booking, GalleryImage, Package, Review, Room, RoomPhoto
 from backend.app.schemas import AvailableRoom, ReviewCreate, RoomOut
 
 
@@ -26,6 +26,7 @@ def _room_out(room: Room) -> dict:
         "inventory": room.inventory,
         "amenities": room.amenities,
         "image_url": room.image_url,
+        "photos": [photo.url for photo in room.photos] or ([room.image_url] if room.image_url else []),
     }
 
 
@@ -171,3 +172,12 @@ def get_availability(
         total = quotes[room.id]
         matching.append({**_room_out(room), "nights": nights, "total_amount": total})
     return matching
+
+
+@router.get("/room-photos/{photo_id}")
+def room_photo(photo_id: str, db: Session = Depends(get_db)):
+    photo = db.get(RoomPhoto, photo_id)
+    if photo is None or photo.external_url or photo.content is None:
+        raise HTTPException(status_code=404, detail="Photo not found.")
+    return Response(photo.content, media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=86400, immutable"})

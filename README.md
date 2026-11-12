@@ -102,3 +102,21 @@ Apply migrations before running a new release: `python -m backend.app.migrate`. 
 - Email delivery is at least once. Resend receives a stable retry key; SMTP can redeliver after a crash between sending and recording completion. A `sent` outbox status means provider acceptance, not proof of delivery to an inbox.
 - Memory rate limits apply to one process. Configure shared Redis (`RATE_LIMIT_STORAGE_URI`) before adding API workers/replicas or using serverless scaling.
 - Prices are treated as the final booking total in INR. Configure tax-inclusive rates; automated GST invoices, tax calculations, SMS and channel-manager integrations are not implemented.
+
+
+### Room photo uploads
+
+Admins can upload up to five JPG, PNG or WebP photos per room, choose a main photo,
+remove photos, and save the gallery with the room. Fewer photos (including none)
+are supported. Existing image URLs are preserved by migration `91e2_room_photos`.
+The main photo is returned in the backward-compatible `image_url` field; the
+ordered `photos` list supplies guest-facing thumbnails.
+
+The browser optimizes original files up to 10 MB to a maximum of 1600 pixels and
+500 KB per photo. The API independently validates and re-encodes images, strips
+metadata, and stores the binary content in Neon `room_photos`, so uploads survive
+Vercel redeploys. Room metadata queries defer image bytes; images are fetched
+through cacheable `/api/room-photos/{id}` URLs. Room saves allow a bounded 3.6 MB
+request; other API endpoints retain their existing request limit. Replacing or
+removing photos is part of the room transaction and deletes unused image rows.
+Apply migrations before deploying the new application version.

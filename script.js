@@ -410,7 +410,34 @@ function renderRoomData(rooms) {
     const image = card.querySelector("img");
     image.alt = room.name;
     const safeImage = validImageURL(room.image_url);
-    if (safeImage) image.src = safeImage;
+    image.src = safeImage || "/devantara-resort.jpg";
+    card.querySelector(".room-photo-thumbnails")?.remove();
+    const photos = (room.photos || []).map(validImageURL).filter(Boolean);
+    if (photos.length > 1) {
+      const thumbnails = makeElement("div", "room-photo-thumbnails");
+      thumbnails.setAttribute("aria-label", `${room.name} photos`);
+      photos.forEach((url, photoIndex) => {
+        const button = makeElement("button", photoIndex === 0 ? "selected" : "");
+        button.type = "button";
+        button.setAttribute("aria-label", `View ${room.name} photo ${photoIndex + 1}${photoIndex === 0 ? ", main photo" : ""}`);
+        button.setAttribute("aria-pressed", String(photoIndex === 0));
+        const thumb = makeElement("img");
+        thumb.src = url;
+        thumb.alt = "";
+        thumb.loading = "lazy";
+        button.append(thumb);
+        button.addEventListener("click", () => {
+          image.src = url;
+          image.alt = `${room.name}, photo ${photoIndex + 1}`;
+          thumbnails.querySelectorAll("button").forEach((item) => {
+            item.classList.toggle("selected", item === button);
+            item.setAttribute("aria-pressed", String(item === button));
+          });
+        });
+        thumbnails.append(button);
+      });
+      link.after(thumbnails);
+    }
     const info = card.querySelector(".room-info");
     info.querySelector("h3").textContent = room.name;
     info.querySelector(".room-info > div > p").textContent = room.description || "Contact us for room details.";

@@ -37,13 +37,16 @@ class RequestProtectionMiddleware:
                        "connect-src 'self' https://*.razorpay.com; frame-src https://*.razorpay.com;")
                 if scope["path"] not in {"/docs", "/redoc"}:
                     headers.append((b"content-security-policy", csp.encode()))
-                if scope["path"].startswith("/api/") or scope["path"] == "/admin":
+                if (scope["path"].startswith("/api/") or scope["path"] == "/admin") and not any(k.lower() == b"cache-control" for k, _ in headers):
                     headers.append((b"cache-control", b"no-store"))
                 if settings.environment == "production":
                     headers.append((b"strict-transport-security", b"max-age=31536000"))
                 message["headers"] = headers
             await send(message)
 
+        # Room saves carry up to five optimized photos; keep other endpoints tightly bounded.
+        room_upload = scope["method"] in {"POST", "PUT"} and (scope["path"] == "/api/admin/rooms" or (scope["path"].startswith("/api/admin/rooms/") and scope["path"].removeprefix("/api/admin/rooms/").isdigit()))
+        body_limit = 3600000 if room_upload else settings.max_request_bytes
         headers = dict(scope.get("headers", []))
         try:
             declared_length = int(headers.get(b"content-length", b"0"))
@@ -51,7 +54,7 @@ class RequestProtectionMiddleware:
             declared_length = -1
         if declared_length < 0:
             return await JSONResponse({"detail": "Invalid Content-Length."}, status_code=400)(scope, receive, protected_send)
-        if declared_length > settings.max_request_bytes:
+        if declared_length > body_limit:
             return await JSONResponse({"detail": "Request body is too large."}, status_code=413)(scope, receive, protected_send)
         body = bytearray()
         while True:
@@ -59,7 +62,7 @@ class RequestProtectionMiddleware:
             if message["type"] == "http.disconnect":
                 return
             body.extend(message.get("body", b""))
-            if len(body) > settings.max_request_bytes:
+            if len(body) > body_limit:
                 return await JSONResponse({"detail": "Request body is too large."}, status_code=413)(scope, receive, protected_send)
             if not message.get("more_body", False):
                 break

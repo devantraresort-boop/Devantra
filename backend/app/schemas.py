@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import ClassVar
+from typing import Annotated, ClassVar
+import re
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
@@ -12,7 +13,7 @@ class APIModel(BaseModel):
     @model_validator(mode="after")
     def validate_image_url(self):
         value = getattr(self, "image_url", None)
-        if value:
+        if value and not re.fullmatch(r"/api/room-photos/[a-f0-9]{32}", value):
             parsed = urlsplit(value)
             if not (parsed.scheme == "https" and parsed.hostname and not parsed.username and not parsed.password):
                 raise ValueError("Image URLs must use HTTPS without credentials.")
@@ -48,6 +49,9 @@ class TokenOut(APIModel):
     admin: AdminOut
 
 
+RoomPhotos = list[Annotated[str, Field(min_length=1, max_length=700000)]]
+
+
 class RoomCreate(APIModel):
     category_id: int = Field(gt=0)
     name: str = Field(min_length=2, max_length=120)
@@ -58,6 +62,7 @@ class RoomCreate(APIModel):
     inventory: int = Field(default=1, ge=1, le=500)
     amenities: str = Field(default="", max_length=2000)
     image_url: str = Field(default="", max_length=500)
+    photos: RoomPhotos | None = Field(default=None, max_length=5)
 
 
 class RoomUpdate(UpdateModel):
@@ -70,6 +75,7 @@ class RoomUpdate(UpdateModel):
     inventory: int | None = Field(default=None, ge=1, le=500)
     amenities: str | None = Field(default=None, max_length=2000)
     image_url: str | None = Field(default=None, max_length=500)
+    photos: RoomPhotos | None = Field(default=None, max_length=5)
     is_active: bool | None = None
 
 
@@ -85,6 +91,7 @@ class RoomOut(APIModel):
     inventory: int
     amenities: str
     image_url: str
+    photos: list[str] = Field(default_factory=list)
 
 
 class AvailabilityRequest(APIModel):
