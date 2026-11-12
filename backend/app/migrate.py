@@ -7,7 +7,7 @@ from backend.app.config import settings
 
 
 def main():
-    engine = create_engine(settings.database_url, pool_pre_ping=True)
+    engine = create_engine(settings.migration_database_url, pool_pre_ping=True)
     with engine.connect() as connection:
         postgres = connection.dialect.name == "postgresql"
         if postgres:

@@ -10,13 +10,13 @@ from backend.app.config import settings
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
-config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
+config.set_main_option("sqlalchemy.url", settings.migration_database_url.replace("%", "%%"))
 target_metadata = models.Base.metadata
 
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=settings.database_url,
+        url=settings.migration_database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},

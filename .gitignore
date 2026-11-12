@@ -15,3 +15,5 @@ devantara.db
 *.dump
 *.backup
 .vercel/
+.neon
+node_modules/

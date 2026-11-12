@@ -40,6 +40,8 @@ python -m backend.app.create_admin
 python -m uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
+The app loads `.env`, then `.env.local`; process environment variables take precedence over both. For Neon, keep the pooled `DATABASE_URL` and direct `DATABASE_URL_UNPOOLED` in the gitignored `.env.local`. Application queries use the pooled URL, while both migration commands use the direct URL when supplied. A Neon `.env.local` overrides the SQLite URL in `.env`; use a separate development branch for local changes and do not seed demo rooms into the production database.
+
 Open `http://127.0.0.1:8000`, `/admin`, or `/docs`. In a second terminal, activate the same environment and start the retry worker:
 
 ```sh
