@@ -85,3 +85,10 @@
 .room-photo-add:hover:not(:disabled) { background: rgba(193, 157, 100, .12); }
 .room-photo-field button:focus-visible { outline: 2px solid var(--gold-light); outline-offset: 3px; }
 .room-photo-field button:disabled, #room-submit:disabled { opacity: .55; cursor: wait; }
+
+.availability-options { margin-top: 24px; border: 1px solid var(--line); padding: 18px; }
+.availability-options summary { color: var(--text); cursor: pointer; font-size: 13px; }
+.availability-options summary span { margin-left: 8px; color: var(--gold-light); font-size: 11px; }
+.availability-options summary:focus-visible { outline: 2px solid var(--gold-light); outline-offset: 5px; }
+.availability-options .availability-form { margin-top: 14px; }
+#room-form > .admin-note { margin: 0; font-size: 11px; line-height: 1.6; }

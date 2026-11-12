@@ -72,6 +72,7 @@
             </form>
             <form class="admin-form" id="room-form">
               <h3 id="room-form-title">Add a room</h3>
+              <p class="admin-note">No dates needed. Rooms are available at the base nightly rate, subject to existing bookings. You can adjust individual days later.</p>
               <input name="room_id" type="hidden" />
               <label>Room name<input name="name" required minlength="2" maxlength="120" /></label>
               <label>Category<select name="category_id" required></select></label>
@@ -99,18 +100,23 @@
             </form>
           </div>
           <div class="table-wrap"><table><thead><tr><th>Room</th><th>Category</th><th>Rate / night</th><th>Capacity</th><th>Status</th><th></th></tr></thead><tbody id="rooms-table"></tbody></table></div>
+          <details class="availability-options">
+            <summary>Day-wise availability &amp; pricing <span>Optional</span></summary>
+            <p class="admin-note">Skip this when adding a room. Use it only to close specific days or change their nightly price.</p>
           <form class="admin-form availability-form" id="availability-form">
-            <h3>Set availability or a nightly price</h3>
+            <h3>Adjust specific days</h3>
+            <label>Apply settings to<select id="availability-mode"><option value="day">Single day</option><option value="range">Date range</option></select></label>
             <label>Room<select name="room_id" required></select></label>
             <div class="admin-form-row">
-              <label>From<input name="start_date" type="date" required /></label>
-              <label>Through (inclusive)<input name="end_date" type="date" required /></label>
+              <label><span id="availability-start-label">Date</span><input name="start_date" type="date" required /></label>
+              <label id="availability-end-label" hidden>Through (inclusive)<input name="end_date" type="date" disabled /></label>
               <label>Price override (INR, optional)<input name="price_override" type="number" min="0" step="0.01" /></label>
             </div>
             <label class="checkbox-label"><input name="is_closed" type="checkbox" /> Close room for these dates</label>
-            <button class="button" type="submit">Save date settings</button>
+            <button class="button" type="submit">Save day settings</button>
             <p class="admin-feedback" data-feedback></p>
           </form>
+          </details>
         </section>
 
         <section class="admin-panel admin-content-panel" data-content="enquiries" hidden>

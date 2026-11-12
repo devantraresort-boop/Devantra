@@ -632,6 +632,15 @@ document.querySelector("#room-edit-cancel").addEventListener("click", () => {
   if (!roomPhotosBusy && !roomSaving) resetRoomForm();
 });
 
+document.querySelector("#availability-mode").addEventListener("change", (event) => {
+  const range = event.target.value === "range";
+  const form = document.querySelector("#availability-form");
+  document.querySelector("#availability-end-label").hidden = !range;
+  document.querySelector("#availability-start-label").textContent = range ? "From" : "Date";
+  form.elements.end_date.disabled = !range;
+  form.elements.end_date.required = range;
+});
+
 document.querySelector("#availability-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -639,7 +648,7 @@ document.querySelector("#availability-form").addEventListener("submit", async (e
   const payload = {
     room_id: Number(fields.room_id),
     start_date: fields.start_date,
-    end_date: fields.end_date,
+    end_date: document.querySelector("#availability-mode").value === "day" ? fields.start_date : fields.end_date,
     is_closed: form.elements.is_closed.checked,
     price_override: fields.price_override ? Number(fields.price_override) : null,
   };
