@@ -27,8 +27,10 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8765",
         "http://localhost:5500",
         "http://127.0.0.1:5500",
+        "https://devantraramdevra.in",
+        "https://www.devantraramdevra.in",
     ]
-    allowed_hosts: list[str] = ["localhost", "127.0.0.1", "testserver"]
+    allowed_hosts: list[str] = ["localhost", "127.0.0.1", "testserver","devantraramdevra.in","www.devantraramdevra.in",]
     booking_hold_minutes: int = Field(default=15, ge=5, le=60)
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
