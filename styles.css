@@ -1475,3 +1475,17 @@ button:disabled { opacity: .6; cursor: wait; }
  .contact-form { min-width: 0; }
  .contact-copy, .experience-copy, .intro-body { min-width: 0; }
 }
+
+/* Property identity and owner contact details. */
+#hero-title > span { display: block; }
+.hero-hotel-name { display: block; margin-top: 12px; font-size: clamp(32px,4.2vw,64px); line-height: 1.12; letter-spacing: -.025em; }
+.hero-location { margin: 26px 0 34px; color: #f2e9db; font-size: 18px; letter-spacing: .22em; text-transform: uppercase; }
+.footer-contact { margin-top: 38px; font-style: normal; font-size: 15px; line-height: 1.8; }
+.footer-contact h2 { margin: 0 0 16px; color: #b1c2b7; font-family: "DM Sans",sans-serif; font-size: 11px; font-weight: 600; letter-spacing: .16em; line-height: 1.5; text-transform: uppercase; }
+.footer-contact p { margin: 0; }
+.footer-contact a { display: inline-block; padding: 5px 0; border-bottom: 1px solid #6c8072; }
+.footer-contact a:hover { color: #e7ded0; }
+.footer-contact .footer-landmark { margin-top: 22px; color: #b1c2b7; font-size: 14px; }
+.footer-credits { padding: 0 0 26px; color: #b1c2b7; font-size: 12px; line-height: 1.8; }
+.footer-credits span { color: #faf8f3; }
+@media (max-width: 760px) { .hero-hotel-name { margin-top: 16px; font-size: clamp(30px,8.2vw,42px); } .hero-location { font-size: 15px; margin: 24px 0 30px; } }
