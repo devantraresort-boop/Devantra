@@ -174,3 +174,13 @@
  .metric-card span { font-size: 12px; }
 }
 @media (max-width: 380px) { .admin-header-title { border: 0; padding-left: 0; } .admin-header .brand { font-size: 23px; } .admin-header-title .eyebrow { display: none; } .admin-header h1 { font-size: 20px; } }
+
+.room-list-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; margin-top: 24px; }
+.room-list-toolbar .checkbox-label { color: var(--text); font-size: 14px; gap: 10px; }
+.room-list-toolbar .admin-note { margin: 0; max-width: 560px; font-size: 13px; }
+.room-table-wrap .room-actions { position: sticky; right: 0; min-width: 170px; background: var(--panel); box-shadow: -5px 0 10px #16221c0a; }
+.room-table-wrap th.room-actions { background: var(--sand); }
+.room-actions .button { margin: 2px 4px 2px 0; padding-inline: 12px; }
+.button-danger { border-color: #9c3a2d; color: #923326; }
+.button-danger:hover:not(:disabled) { background: #f6e8e3; color: #78291e; }
+@media (max-width: 700px) { .room-table-wrap .room-actions { min-width: 98px; width: 98px; padding: 10px; } .room-actions .button { width: 100%; margin: 3px 0; } }

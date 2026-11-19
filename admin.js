@@ -172,7 +172,8 @@ async function loadRooms() {
   const categoryNames = new Map(categories.map((item) => [item.id, item.name]));
   const table = document.querySelector("#rooms-table");
   table.replaceChildren();
-  for (const room of rooms) {
+  const visibleRooms = rooms.filter((room) => room.is_active || document.querySelector("#show-archived-rooms").checked);
+  for (const room of visibleRooms) {
     const row = document.createElement("tr");
     addTableCell(row, room.name, true);
     addTableCell(row, categoryNames.get(room.category_id) || "—");
@@ -180,29 +181,54 @@ async function loadRooms() {
     addTableCell(row, `${room.capacity_adults} adults · ${room.capacity_children} children · ${room.inventory} units`);
     addTableCell(row, room.is_active ? "Active" : "Archived");
     const actions = document.createElement("td");
+    actions.className = "room-actions";
     const edit = el("button", "Edit", "button button-outline");
     edit.type = "button";
     edit.addEventListener("click", () => editRoom(room));
     actions.append(edit);
-    if (room.is_active) {
-      const archive = el("button", "Archive", "button button-outline");
-      archive.type = "button";
-      archive.addEventListener("click", async () => {
-        if (!window.confirm(`Archive ${room.name}? Existing bookings are retained.`)) return;
+    {
+      const remove = el("button", "Delete", "button button-outline button-danger");
+      remove.type = "button";
+      remove.setAttribute("aria-label", `Delete ${room.name}`);
+      remove.addEventListener("click", async () => {
+        if (!window.confirm(`Delete ${room.name}? Rooms without booking history are permanently deleted. Rooms with bookings are archived so reservation records are preserved.`)) return;
+        remove.disabled = true;
+        edit.disabled = true;
+        remove.textContent = "Deleting…";
+        setDashboardMessage("");
         try {
           await adminApi(`/api/admin/rooms/${room.id}`, { method: "DELETE" });
-          await loadRooms();
+          if (document.querySelector('#room-form [name="room_id"]').value === String(room.id)) resetRoomForm();
         } catch (error) {
           setDashboardMessage(error.message, true);
+          remove.disabled = false;
+          edit.disabled = false;
+          remove.textContent = "Delete";
+          return;
+        }
+        try {
+          const remaining = await loadRooms();
+          const archived = remaining.some((item) => item.id === room.id);
+          setDashboardMessage(archived
+            ? `${room.name} removed from public listings. Its booking history is retained under Show archived rooms.`
+            : `${room.name} deleted successfully.`);
+        } catch {
+          setDashboardMessage("Room removed, but the list could not refresh. Click Refresh to reload it.", true);
         }
       });
-      actions.append(archive);
+      actions.append(remove);
     }
     row.append(actions);
     table.append(row);
   }
-  if (!rooms.length) table.append(emptyRow(6, "Create a room category, then add a room with your verified rate and capacity."));
+  if (!visibleRooms.length) table.append(emptyRow(6, "No active rooms. Add a room above or select Show archived rooms to view retained records."));
+  return rooms;
 }
+
+document.querySelector("#show-archived-rooms").addEventListener("change", async () => {
+  try { await loadRooms(); }
+  catch (error) { setDashboardMessage(error.message, true); }
+});
 
 let roomPhotos = [];
 let roomPhotosBusy = false;

@@ -185,12 +185,19 @@ def update_room(
 
 
 @router.delete("/rooms/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
-def archive_room(room_id: int, db: Session = Depends(get_db), admin: Admin = Depends(require_admin)):
+def delete_room(room_id: int, db: Session = Depends(get_db), admin: Admin = Depends(require_admin)):
     room = db.scalar(select(Room).where(Room.id == room_id).with_for_update(of=Room))
     if room is None:
         raise HTTPException(status_code=404, detail="Room not found.")
-    room.is_active = False
-    _activity(db, admin, "room.archive", "room", str(room.id))
+    # Booking creation takes this same room lock. Keep every historical booking
+    # and its room reference intact, but allow unused room entries to be removed.
+    has_bookings = db.scalar(select(Booking.id).where(Booking.room_id == room_id).limit(1)) is not None
+    if has_bookings:
+        room.is_active = False
+        _activity(db, admin, "room.archive", "room", str(room.id))
+    else:
+        db.delete(room)
+        _activity(db, admin, "room.delete", "room", str(room.id))
     db.commit()
 
 

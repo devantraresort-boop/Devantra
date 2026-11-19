@@ -104,7 +104,8 @@
               <p class="admin-feedback" data-feedback></p>
             </form>
           </div>
-          <div class="table-wrap"><table><thead><tr><th>Room</th><th>Category</th><th>Rate / night</th><th>Capacity</th><th>Status</th><th></th></tr></thead><tbody id="rooms-table"></tbody></table></div>
+          <div class="room-list-toolbar"><label class="checkbox-label"><input id="show-archived-rooms" type="checkbox" /> Show archived rooms</label><p class="admin-note">Delete removes unused rooms. Rooms with bookings are archived to keep reservation history.</p></div>
+          <div class="table-wrap room-table-wrap"><table><thead><tr><th>Room</th><th>Category</th><th>Rate / night</th><th>Capacity</th><th>Status</th><th class="room-actions">Actions</th></tr></thead><tbody id="rooms-table"></tbody></table></div>
           <details class="availability-options">
             <summary>Day-wise availability &amp; pricing <span>Optional</span></summary>
             <p class="admin-note">Skip this when adding a room. Use it only to close specific days or change their nightly price.</p>
