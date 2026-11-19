@@ -731,3 +731,25 @@ async function loadReviews() {
   } catch { /* Reviews are optional; the booking service remains available. */ }
 }
 loadReviews();
+
+
+const developersDialog = document.querySelector("#developers-dialog");
+const developersButton = document.querySelector("#about-developers");
+developersButton.addEventListener("click", () => {
+  if (developersDialog.open) return;
+  developersDialog.showModal();
+  document.body.classList.add("developer-dialog-open");
+  developersButton.setAttribute("aria-expanded", "true");
+});
+document.querySelector("#close-developers").addEventListener("click", () => developersDialog.close());
+developersDialog.addEventListener("close", () => {
+  document.body.classList.remove("developer-dialog-open");
+  developersButton.setAttribute("aria-expanded", "false");
+  developersButton.focus({ preventScroll: true });
+});
+developersDialog.addEventListener("click", (event) => {
+  if (event.target !== developersDialog) return;
+  const bounds = developersDialog.getBoundingClientRect();
+  if (event.clientX < bounds.left || event.clientX > bounds.right ||
+      event.clientY < bounds.top || event.clientY > bounds.bottom) developersDialog.close();
+});

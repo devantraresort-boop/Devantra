@@ -1512,6 +1512,24 @@ button:disabled { opacity: .6; cursor: wait; }
 .developer-info a strong { font-size: 16px; font-weight: 500; overflow-wrap: anywhere; }
 .developer-platform { display: inline-block; margin-top: 8px; color: #e7ded0; text-decoration: underline; text-underline-offset: 4px; }
 .developer-info a:hover strong { color: #e7ded0; }
-.footer-credits a { color: var(--paper); text-decoration: underline; text-underline-offset: 3px; }
+
 @media (max-width: 1080px) { .developer-card { grid-template-columns: 1fr; } .developer-card > img { height: 360px; min-height: 0; object-position: center 30%; } }
 @media (max-width: 760px) { .hero-place { gap: 12px; margin: 22px 0 26px; flex-direction: column; align-items: flex-start; } .hero-landmark { font-size: 12px; } .developer-heading { grid-template-columns: 1fr; gap: 22px; } .developer-grid { grid-template-columns: 1fr; gap: 24px; } .developer-card > img { height: 350px; } .developer-info { padding: 28px 24px; } .developer-section { padding-block: 50px; } }
+
+/* Developer profiles open from the footer in an accessible native dialog. */
+.footer-credits { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+.about-developers-button { min-height: 44px; padding: 12px 20px; border: 1px solid #91a598; background: transparent; color: var(--paper); font-size: 11px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
+.about-developers-button:hover { background: var(--paper); color: var(--forest-deep); }
+.developer-dialog { width: min(1180px,calc(100% - 40px)); max-height: calc(100svh - 64px); margin: auto; padding: 0; border: 1px solid #6a8074; background: var(--forest-deep); color: var(--paper); box-shadow: 0 30px 100px #0006; overscroll-behavior: contain; }
+.developer-dialog::backdrop { background: rgba(5,15,10,.75); backdrop-filter: blur(5px); }
+.developer-dialog-open { overflow: hidden; }
+.developer-dialog-toolbar { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 20px 40px; border-bottom: 1px solid #ffffff24; background: var(--forest-deep); }
+.developer-dialog-toolbar > span { color: #bdcbbf; font-size: 11px; letter-spacing: .15em; text-transform: uppercase; }
+.developer-dialog-toolbar button { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 44px; padding: 8px 14px; border: 1px solid #91a598; background: transparent; color: var(--paper); font-size: 13px; cursor: pointer; }
+.developer-dialog-toolbar button:hover { background: #ffffff12; }
+.developer-dialog-toolbar button span { font-size: 24px; line-height: 1; }
+.developer-dialog .developer-section { margin: 0; padding: 36px 40px 40px; border: 0; }
+.developer-dialog .developer-heading { gap: 32px; }
+.developer-dialog .developer-heading h2 { font-size: clamp(36px,4vw,48px); }
+.developer-dialog .developer-info { padding: 26px 20px; }
+@media (max-width: 760px) { .developer-dialog { width: calc(100% - 24px); max-height: calc(100svh - 24px); } .developer-dialog-toolbar { padding: 12px 18px; } .developer-dialog .developer-section { padding: 28px 20px; } .developer-dialog .developer-card > img { height: 280px; } .footer-credits { align-items: flex-start; flex-direction: column; } }
