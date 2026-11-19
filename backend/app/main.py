@@ -143,6 +143,12 @@ def admin_page():
     return FileResponse(PROJECT_ROOT / "admin.html")
 
 
+@app.get("/googlef17034cc86bbb01d.html", include_in_schema=False)
+@limiter.exempt
+def google_site_verification():
+    return FileResponse(PROJECT_ROOT / "googlef17034cc86bbb01d.html", media_type="text/html")
+
+
 @app.get("/styles.css", include_in_schema=False)
 def website_styles():
     return FileResponse(PROJECT_ROOT / "styles.css", media_type="text/css")
