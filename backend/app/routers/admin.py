@@ -342,6 +342,16 @@ def admin_enquiries(
     return db.scalars(query).all()
 
 
+@router.delete("/enquiries/{enquiry_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_enquiry(enquiry_id: int, db: Session = Depends(get_db), admin: Admin = Depends(require_admin)):
+    enquiry = db.get(ContactEnquiry, enquiry_id)
+    if enquiry is None:
+        raise HTTPException(status_code=404, detail="Enquiry not found.")
+    db.delete(enquiry)
+    _activity(db, admin, "enquiry.delete", "enquiry", str(enquiry_id))
+    db.commit()
+
+
 @router.put("/enquiries/{enquiry_id}")
 def update_enquiry(
     enquiry_id: int,

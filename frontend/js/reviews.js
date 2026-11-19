@@ -43,6 +43,7 @@ form.addEventListener('submit', async event => {
     await request('/api/reviews', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(values)});
     feedback.textContent = 'Thank you for sharing your experience!';
     button.textContent = 'Review submitted';
+    await loadReviews();
   } catch (error) { feedback.textContent = error.message; button.disabled = false; }
 });
 loadReviews();

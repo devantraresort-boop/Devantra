@@ -683,7 +683,7 @@ function reviewForm(booking) {
   const comment = makeElement("textarea");
   comment.maxLength = 3000;
   commentLabel.append(comment);
-  const submit = makeElement("button", "button", "Submit for moderation");
+  const submit = makeElement("button", "button", "Submit review");
   const feedback = makeElement("p", "form-feedback");
   feedback.setAttribute("role", "status");
   form.append(ratingLabel, commentLabel, submit, feedback);
@@ -693,7 +693,8 @@ function reviewForm(booking) {
     try {
       await api("/api/reviews", { method: "POST", body: JSON.stringify({ booking_ref: booking.booking_ref,
         email: booking.guest_email, rating: Number(rating.value), comment: comment.value }) });
-      feedback.textContent = "Thank you. Your review is awaiting moderation.";
+      feedback.textContent = "Thank you for sharing your experience!";
+      await loadReviews();
     } catch (error) { feedback.textContent = error.message; submit.disabled = false; }
   });
   return form;
@@ -721,6 +722,7 @@ async function loadReviews() {
     const reviews = await api("/api/reviews");
     const section = document.querySelector("#guest-reviews");
     const list = section.querySelector(".review-list");
+    list.replaceChildren();
     for (const review of reviews) {
       const card = makeElement("article", "booking-state");
       card.append(makeElement("h3", "", review.guest_name),

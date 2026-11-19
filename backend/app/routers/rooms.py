@@ -113,11 +113,11 @@ def public_reviews(db: Session = Depends(get_db)):
 @router.post("/reviews", status_code=201)
 def create_review(payload: ReviewCreate | GuestReviewCreate, db: Session = Depends(get_db)):
     if isinstance(payload, GuestReviewCreate):
-        review = Review(guest_name=payload.guest_name, rating=payload.rating, comment=payload.comment)
+        review = Review(guest_name=payload.guest_name, rating=payload.rating, comment=payload.comment, is_published=True)
         db.add(review)
         db.commit()
         db.refresh(review)
-        return {"id": review.id, "status": "pending_moderation"}
+        return {"id": review.id, "status": "published"}
 
     booking = db.scalar(
         select(Booking).where(
@@ -138,11 +138,12 @@ def create_review(payload: ReviewCreate | GuestReviewCreate, db: Session = Depen
         guest_name=booking.guest_name,
         rating=payload.rating,
         comment=payload.comment,
+        is_published=True,
     )
     db.add(review)
     db.commit()
     db.refresh(review)
-    return {"id": review.id, "status": "pending_moderation"}
+    return {"id": review.id, "status": "published"}
 
 
 @router.get("/availability", response_model=list[AvailableRoom])

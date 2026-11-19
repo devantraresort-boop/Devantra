@@ -28,7 +28,7 @@ def test_review_submission_moderation_and_deletion(client, sessions, room_id):
     response = client.post('/api/reviews', json=payload)
     assert response.status_code == 201
     review_id = response.json()['id']
-    assert client.get('/api/reviews').json() == []
+    assert client.get('/api/reviews').json()[0]['rating'] == 5
     assert client.post('/api/reviews', json=payload).status_code == 409
     headers = auth(client)
     assert client.get('/api/admin/reviews', headers=headers).json()[0]['rating'] == 5
@@ -51,7 +51,7 @@ def test_guest_review_without_booking(client, sessions):
     response = client.post('/api/reviews', json=payload)
     assert response.status_code == 201
     review_id = response.json()['id']
-    assert client.get('/api/reviews').json() == []
+    assert client.get('/api/reviews').json()[0]['rating'] == 4
     headers = auth(client)
     rows = client.get('/api/admin/reviews', headers=headers).json()
     assert rows[0]['guest_name'] == 'Walk-in Guest'
