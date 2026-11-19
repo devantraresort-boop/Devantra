@@ -3,37 +3,42 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0a1118" />
+    <meta name="theme-color" content="#10271e" />
     <title>Resort administration | Devantara</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/assets/admin-base.css" />
     <link rel="stylesheet" href="./admin.css" />
     <script src="./admin.js" defer></script>
   </head>
   <body class="admin-page">
+    <a class="skip-link" href="#admin-main">Skip to administration</a>
     <header class="admin-header">
       <a class="brand" href="/" aria-label="Devantara Resort home">
-        <img src="./file_00000000efec820b99f93b6e6968371f.png" alt="Devantara Resort" />
+        <span class="mark" aria-hidden="true"><svg viewBox="0 0 42 42"><path d="M21 3v36M9 9c13 0 24 9 24 20M33 9C20 9 9 18 9 29" /></svg></span><span>Devantara<small>Resort</small></span>
       </a>
-      <div>
-        <p class="eyebrow">Devantara Resort</p>
+      <div class="admin-header-title">
+        <p class="eyebrow">Resort workspace</p>
         <h1>Administration</h1>
       </div>
       <button class="button button-outline" id="logout" type="button" hidden>Sign out</button>
     </header>
 
-    <main class="admin-main">
+    <main class="admin-main" id="admin-main">
       <section class="admin-login admin-panel" id="login-panel">
-        <p class="eyebrow">Secure access</p>
+        <div class="admin-login-visual"><p class="eyebrow">Devantara Resort</p><p>Thoughtful stays.<br /><em>Every detail, cared for.</em></p></div>
+        <div class="admin-login-content">
+        <p class="eyebrow">Welcome back</p>
         <h2>Admin <em>sign in</em></h2>
+        <p class="admin-login-caption">Manage your rooms, guest stays and resort details.</p>
         <form id="login-form">
           <label>Email address<input name="email" type="email" autocomplete="username" required /></label>
           <label>Password<input name="password" type="password" autocomplete="current-password" required /></label>
           <button class="button" type="submit">Sign in</button>
           <p class="admin-feedback" id="login-feedback" role="status" aria-live="polite"></p>
         </form>
+        </div>
       </section>
 
       <section id="dashboard" hidden>

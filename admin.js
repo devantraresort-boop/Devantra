@@ -66,6 +66,7 @@ function showDashboard() {
 }
 
 function showLogin() {
+  loginFeedback.textContent = "";
   loginPanel.hidden = false;
   dashboard.hidden = true;
   logoutButton.hidden = true;
