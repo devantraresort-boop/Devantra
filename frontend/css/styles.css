@@ -1533,3 +1533,11 @@ button:disabled { opacity: .6; cursor: wait; }
 .developer-dialog .developer-heading h2 { font-size: clamp(36px,4vw,48px); }
 .developer-dialog .developer-info { padding: 26px 20px; }
 @media (max-width: 760px) { .developer-dialog { width: calc(100% - 24px); max-height: calc(100svh - 24px); } .developer-dialog-toolbar { padding: 12px 18px; } .developer-dialog .developer-section { padding: 28px 20px; } .developer-dialog .developer-card > img { height: 280px; } .footer-credits { align-items: flex-start; flex-direction: column; } }
+
+.reach-section,.review-invitation{padding-block:64px;border-top:1px solid var(--line)}
+.reach-section .lead{max-width:700px}.reach-actions{display:flex;flex-wrap:wrap;gap:16px;margin:28px 0}.review-invitation .solid-button{margin-top:20px}
+.footer-contact strong{font-weight:700}
+.reviews-page{padding-block:70px}.reviews-page h1{font:clamp(48px,7vw,88px)/1.05 "Newsreader",serif;margin:20px 0}.reviews-page>.solid-button{margin-top:20px}
+.reviews-reading,.review-write{padding-block:48px}.review-write{border-top:1px solid var(--line);max-width:720px}.review-write .guest-details-form{margin-top:28px}.review-list p{overflow-wrap:anywhere;white-space:pre-wrap}.review-stars{color:#946822;font-size:25px;letter-spacing:3px}
+.star-picker{border:0;padding:0;margin:0;min-width:0}.star-options{display:flex;gap:8px;margin-top:12px}.star-options label{position:relative;cursor:pointer;text-align:center;flex:1;border:1px solid var(--line);padding:10px 4px;border-radius:6px}.star-options input{position:absolute;opacity:0;width:1px;height:1px}.star-options label>span:first-of-type{display:block;font-size:32px;color:#8b8b80}.star-options .selected{background:#e7dec7;border-color:#946822}.star-options .selected>span:first-of-type{color:#946822}.star-options label:focus-within{outline:3px solid var(--forest);outline-offset:3px}.star-label{font-size:12px}.reviews-page .guest-details-form textarea{width:100%;padding:14px;font:inherit;border:1px solid var(--line);background:var(--paper)}
+@media(max-width:600px){.reviews-page{padding-block:40px}.reach-actions{align-items:stretch;flex-direction:column}.star-options{gap:4px}.reviews-page+.footer-bottom{flex-direction:column}}

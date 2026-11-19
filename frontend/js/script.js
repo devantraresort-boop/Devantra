@@ -674,7 +674,7 @@ function reviewForm(booking) {
   const ratingLabel = makeElement("label", "", "Rating");
   const rating = makeElement("select");
   for (let score = 5; score >= 1; score--) {
-    const option = makeElement("option", "", `${score} / 5`);
+    const option = makeElement("option", "", `${"★".repeat(score)}${"☆".repeat(5 - score)} (${score}/5)`);
     option.value = score;
     rating.append(option);
   }
@@ -724,7 +724,7 @@ async function loadReviews() {
     for (const review of reviews) {
       const card = makeElement("article", "booking-state");
       card.append(makeElement("h3", "", review.guest_name),
-        makeElement("p", "", `${review.rating} / 5`), makeElement("p", "", review.comment));
+        makeElement("p", "", `${"★".repeat(review.rating)}${"☆".repeat(5 - review.rating)} (${review.rating}/5)`), makeElement("p", "", review.comment));
       list.append(card);
     }
     section.hidden = !reviews.length;

@@ -787,13 +787,24 @@ async function loadReviews() {
   list.replaceChildren();
   if (!rows.length) list.append(el("p", "No reviews on this page."));
   for (const review of rows) {
-    contentRow(list, `${review.guest_name} · ${review.rating}/5`, review.comment,
+    contentRow(list, `${review.guest_name} · ${"★".repeat(review.rating)}${"☆".repeat(5 - review.rating)} · ${review.is_published ? "Published" : "Pending approval"}`, review.comment,
       review.is_published ? "Unpublish" : "Publish", async () => {
         try {
           await adminApi(`/api/admin/reviews/${review.id}/publish?is_published=${!review.is_published}`, { method: "PUT" });
           await loadReviews();
         } catch (error) { setDashboardMessage(error.message, true); }
       });
+    const remove = el("button", "Delete review", "button button-outline");
+    remove.type = "button";
+    remove.addEventListener("click", async () => {
+      if (!confirm(`Delete the review by ${review.guest_name}? This cannot be undone.`)) return;
+      remove.disabled = true;
+      try {
+        await adminApi(`/api/admin/reviews/${review.id}`, { method: "DELETE" });
+        await loadReviews();
+      } catch (error) { setDashboardMessage(error.message, true); remove.disabled = false; }
+    });
+    list.lastElementChild.append(remove);
   }
   renderPager("reviews", rows.length, loadReviews);
 }

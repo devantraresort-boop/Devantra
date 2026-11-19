@@ -15,7 +15,7 @@ class PageAssets(HTMLParser):
 
 def test_frontend_pages_and_linked_assets_survive_reorganization(client):
     urls = set()
-    for path in ["/", "/admin"]:
+    for path in ["/", "/admin", "/reviews"]:
         response = client.get(path)
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]

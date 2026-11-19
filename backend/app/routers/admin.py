@@ -503,6 +503,16 @@ def admin_reviews(limit: int = Query(default=100, ge=1, le=250), offset: int = Q
     return db.scalars(select(Review).order_by(Review.created_at.desc(), Review.id.desc()).offset(offset).limit(limit)).all()
 
 
+@router.delete("/reviews/{review_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_review(review_id: int, db: Session = Depends(get_db), admin: Admin = Depends(require_admin)):
+    review = db.get(Review, review_id)
+    if review is None:
+        raise HTTPException(status_code=404, detail="Review not found.")
+    db.delete(review)
+    _activity(db, admin, "review.delete", "review", str(review_id))
+    db.commit()
+
+
 @router.put("/reviews/{review_id}/publish")
 def publish_review(
     review_id: int,

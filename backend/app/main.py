@@ -148,6 +148,11 @@ def website_home():
     return FileResponse(FRONTEND_ROOT / "index.html")
 
 
+@app.get("/reviews", include_in_schema=False)
+def reviews_page():
+    return FileResponse(FRONTEND_ROOT / "reviews.html")
+
+
 @app.get("/admin", include_in_schema=False)
 def admin_page():
     return FileResponse(FRONTEND_ROOT / "admin.html")
