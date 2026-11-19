@@ -258,6 +258,12 @@ class RefundRequest(APIModel):
     reason: str = Field(default="", max_length=255)
 
 
+class GuestReviewCreate(APIModel):
+    guest_name: str = Field(min_length=1, max_length=120)
+    rating: int = Field(ge=1, le=5)
+    comment: str = Field(default="", max_length=3000)
+
+
 class ReviewCreate(APIModel):
     booking_ref: str = Field(min_length=16, max_length=32)
     email: EmailStr

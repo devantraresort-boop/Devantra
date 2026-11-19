@@ -42,3 +42,23 @@ def test_review_submission_moderation_and_deletion(client, sessions, room_id):
     with sessions() as db:
         assert db.get(Review, review_id) is None
         assert db.scalar(select(AdminActivityLog.id).where(AdminActivityLog.action == 'review.delete')) is not None
+
+
+def test_guest_review_without_booking(client, sessions):
+    payload = {'guest_name': '  Walk-in Guest  ', 'rating': 4, 'comment': 'Lovely experience'}
+    for invalid in [{'guest_name': '   '}, {'rating': 0}, {'rating': 6}]:
+        assert client.post('/api/reviews', json={**payload, **invalid}).status_code == 422
+    response = client.post('/api/reviews', json=payload)
+    assert response.status_code == 201
+    review_id = response.json()['id']
+    assert client.get('/api/reviews').json() == []
+    headers = auth(client)
+    rows = client.get('/api/admin/reviews', headers=headers).json()
+    assert rows[0]['guest_name'] == 'Walk-in Guest'
+    assert rows[0]['rating'] == 4
+    with sessions() as db:
+        assert db.get(Review, review_id).booking_id is None
+    assert client.put(f'/api/admin/reviews/{review_id}/publish?is_published=true', headers=headers).status_code == 200
+    assert client.get('/api/reviews').json()[0]['rating'] == 4
+    assert client.delete(f'/api/admin/reviews/{review_id}', headers=headers).status_code == 204
+    assert client.get('/api/reviews').json() == []

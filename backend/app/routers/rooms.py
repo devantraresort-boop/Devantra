@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from backend.app.booking_service import resort_today, room_quotes
 from backend.app.database import get_db
 from backend.app.models import Amenity, Booking, GalleryImage, Package, Review, Room, RoomPhoto
-from backend.app.schemas import AvailableRoom, ReviewCreate, RoomOut
+from backend.app.schemas import AvailableRoom, GuestReviewCreate, ReviewCreate, RoomOut
 
 
 router = APIRouter(prefix="/api", tags=["rooms and availability"])
@@ -111,7 +111,14 @@ def public_reviews(db: Session = Depends(get_db)):
 
 
 @router.post("/reviews", status_code=201)
-def create_review(payload: ReviewCreate, db: Session = Depends(get_db)):
+def create_review(payload: ReviewCreate | GuestReviewCreate, db: Session = Depends(get_db)):
+    if isinstance(payload, GuestReviewCreate):
+        review = Review(guest_name=payload.guest_name, rating=payload.rating, comment=payload.comment)
+        db.add(review)
+        db.commit()
+        db.refresh(review)
+        return {"id": review.id, "status": "pending_moderation"}
+
     booking = db.scalar(
         select(Booking).where(
             Booking.booking_ref == payload.booking_ref,

@@ -28,7 +28,7 @@ async function loadReviews() {
       const comment = document.createElement('p'); comment.textContent = review.comment;
       card.append(name, rating, comment); list.append(card);
     }
-    status.textContent = reviews.length ? 'Approved guest experiences' : 'No published reviews yet. Be the first to share your stay.';
+    status.textContent = reviews.length ? 'Guest experiences' : 'No reviews yet. Be the first to share your stay.';
   } catch { status.textContent = 'Reviews could not be loaded. Please try again.'; retry.hidden = false; }
 }
 document.querySelector('#retry-reviews').addEventListener('click', loadReviews);
@@ -38,10 +38,10 @@ form.addEventListener('submit', async event => {
   const feedback = document.querySelector('#review-feedback');
   button.disabled = true; feedback.textContent = 'Submitting your review…';
   const values = Object.fromEntries(new FormData(form)); values.rating = Number(values.rating);
-  values.booking_ref = values.booking_ref.trim(); values.email = values.email.trim();
+  values.guest_name = values.guest_name.trim();
   try {
     await request('/api/reviews', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(values)});
-    feedback.textContent = 'Thank you! Your review has been sent to the resort and will appear after approval.';
+    feedback.textContent = 'Thank you for sharing your experience!';
     button.textContent = 'Review submitted';
   } catch (error) { feedback.textContent = error.message; button.disabled = false; }
 });
