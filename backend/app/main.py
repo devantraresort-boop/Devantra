@@ -29,6 +29,7 @@ from backend.app.routers import admin, auth, bookings, contact, payments, rooms
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+FRONTEND_ROOT = PROJECT_ROOT / "frontend"
 
 
 @asynccontextmanager
@@ -67,8 +68,15 @@ app = FastAPI(
     dependencies=[Depends(deliver_after_mutation)],
     lifespan=lifespan,
 )
+@app.get("/assets/admin-base.css", include_in_schema=False)
+def legacy_admin_base_styles():
+    return FileResponse(FRONTEND_ROOT / "css/admin-base.css", media_type="text/css")
+
+
 app.state.limiter = limiter
-app.mount("/assets", StaticFiles(directory=PROJECT_ROOT / "assets"), name="assets")
+app.mount("/assets", StaticFiles(directory=FRONTEND_ROOT / "assets"), name="assets")
+app.mount("/css", StaticFiles(directory=FRONTEND_ROOT / "css"), name="stylesheets")
+app.mount("/js", StaticFiles(directory=FRONTEND_ROOT / "js"), name="scripts")
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(
@@ -137,45 +145,45 @@ def scheduled_maintenance(authorization: str | None = Header(default=None)):
 
 @app.get("/", include_in_schema=False)
 def website_home():
-    return FileResponse(PROJECT_ROOT / "index.html")
+    return FileResponse(FRONTEND_ROOT / "index.html")
 
 
 @app.get("/admin", include_in_schema=False)
 def admin_page():
-    return FileResponse(PROJECT_ROOT / "admin.html")
+    return FileResponse(FRONTEND_ROOT / "admin.html")
 
 
 @app.get("/googlef17034cc86bbb01d.html", include_in_schema=False)
 @limiter.exempt
 def google_site_verification():
-    return FileResponse(PROJECT_ROOT / "googlef17034cc86bbb01d.html", media_type="text/html")
+    return FileResponse(FRONTEND_ROOT / "googlef17034cc86bbb01d.html", media_type="text/html")
 
 
 @app.get("/styles.css", include_in_schema=False)
 def website_styles():
-    return FileResponse(PROJECT_ROOT / "styles.css", media_type="text/css")
+    return FileResponse(FRONTEND_ROOT / "css/styles.css", media_type="text/css")
 
 
 @app.get("/script.js", include_in_schema=False)
 def website_script():
-    return FileResponse(PROJECT_ROOT / "script.js", media_type="text/javascript")
+    return FileResponse(FRONTEND_ROOT / "js/script.js", media_type="text/javascript")
 
 
 @app.get("/admin.css", include_in_schema=False)
 def admin_styles():
-    return FileResponse(PROJECT_ROOT / "admin.css", media_type="text/css")
+    return FileResponse(FRONTEND_ROOT / "css/admin.css", media_type="text/css")
 
 
 @app.get("/admin.js", include_in_schema=False)
 def admin_script():
-    return FileResponse(PROJECT_ROOT / "admin.js", media_type="text/javascript")
+    return FileResponse(FRONTEND_ROOT / "js/admin.js", media_type="text/javascript")
 
 
 @app.get("/devantara-resort.jpg", include_in_schema=False)
 def resort_image():
-    return FileResponse(PROJECT_ROOT / "devantara-resort.jpg", media_type="image/jpeg")
+    return FileResponse(FRONTEND_ROOT / "assets/resort/property-preview.jpg", media_type="image/jpeg")
 
 
 @app.get("/file_00000000efec820b99f93b6e6968371f.png", include_in_schema=False)
 def resort_logo():
-    return FileResponse(PROJECT_ROOT / "file_00000000efec820b99f93b6e6968371f.png", media_type="image/png")
+    return FileResponse(FRONTEND_ROOT / "assets/brand/resort-logo.png", media_type="image/png")

@@ -17,3 +17,10 @@ devantara.db
 .vercel/
 .neon
 node_modules/
+
+# Local design imports and operating-system metadata
+.DS_Store
+/Modernize Existing Frontend/
+/WhatsApp Unknown 2026-11-19 at 10.06.45 PM/
+/hello.jpeg
+/rudra.jpeg

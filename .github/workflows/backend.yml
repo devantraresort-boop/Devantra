@@ -40,4 +40,4 @@ jobs:
       - run: python -m alembic check
       - run: python -m pyflakes backend tests
       - run: python -m pytest -q
-      - run: node --check script.js && node --check admin.js
+      - run: node --check frontend/js/script.js && node --check frontend/js/admin.js

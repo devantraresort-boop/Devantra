@@ -7,7 +7,7 @@ Passed locally:
 - `pytest tests/test_inventory.py tests/test_inventory_queries.py -q`: **10 passed**. These execute real SQLite/SQLAlchemy queries and constraints, room pricing and closures, expired holds, transaction rollback, idempotency uniqueness, multi-room query counts, and an independent nightly-counter comparison over 300 generated scenarios.
 - `python -m pyflakes backend tests`: no findings.
 - `python -m compileall -q backend tests`: passed.
-- `node --check script.js` and `node --check admin.js`: passed.
+- `node --check frontend/js/script.js` and `node --check frontend/js/admin.js`: passed.
 - `git diff --check`: passed.
 
 Not verified in this environment:

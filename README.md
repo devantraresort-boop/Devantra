@@ -2,6 +2,32 @@
 
 A FastAPI backend and responsive guest/admin website, using SQLAlchemy, PostgreSQL, Razorpay and a durable email outbox. SQLite remains available for local development. Deployment does not require Docker.
 
+## Repository layout
+
+```text
+frontend/                 Guest and admin pages
+  css/                    Shared theme and page styles
+  js/                     Guest booking and admin interactions
+  assets/                 Optimized resort, developer and brand images
+  google*.html            Persistent Google ownership verification
+backend/app/              FastAPI routes, models and services
+backend/migrations/       Versioned database migrations
+tests/                    Backend and integration checks
+scripts/                  Local development helpers
+docs/                     Deployment and verification guides
+design/source-images/     Original artwork retained for reference
+.github/workflows/        CI checks
+```
+
+Run commands from the repository root. Hosting configuration, Python/Node dependency
+manifests, and the macOS launcher remain here for tooling discovery. FastAPI serves
+the homepage at `/`, the admin panel at `/admin`, and files under `/assets`, `/css`
+and `/js`. Legacy stylesheet, script and image URLs remain supported. The Google
+verification file remains available at its original root URL.
+
+Raw local design exports and incoming photo folders are ignored; publish optimized
+assets under `frontend/assets/`. See [the asset guide](frontend/README.md).
+
 ## What works
 
 - Room categories, inventory, capacity, nightly price overrides and closed dates managed by administrators.
@@ -82,8 +108,8 @@ A free service can be useful for a preview, but sleeping instances, provider quo
 ```sh
 python -m pytest -q
 python -m pyflakes backend tests
-node --check script.js
-node --check admin.js
+node --check frontend/js/script.js
+node --check frontend/js/admin.js
 python -m alembic check
 ```
 
