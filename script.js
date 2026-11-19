@@ -33,6 +33,7 @@ menuToggle.addEventListener("click", () => {
   menuToggle.setAttribute("aria-expanded", String(!isExpanded));
   menuToggle.setAttribute("aria-label", isExpanded ? "Open navigation" : "Close navigation");
   navigation.classList.toggle("is-open", !isExpanded);
+  menuToggle.querySelector(".menu-icon")?.classList.toggle("is-open", !isExpanded);
 });
 
 navigation.addEventListener("click", (event) => {
@@ -40,6 +41,14 @@ navigation.addEventListener("click", (event) => {
     menuToggle.setAttribute("aria-expanded", "false");
     menuToggle.setAttribute("aria-label", "Open navigation");
     navigation.classList.remove("is-open");
+    menuToggle.querySelector(".menu-icon")?.classList.remove("is-open");
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && navigation.classList.contains("is-open")) {
+    menuToggle.click();
+    menuToggle.focus();
   }
 });
 
@@ -327,7 +336,7 @@ document.querySelector("#booking").addEventListener("submit", async (event) => {
     bookingResults.replaceChildren();
   } finally {
     submit.disabled = false;
-    submit.innerHTML = 'Check availability <span aria-hidden="true">→</span>';
+    submit.textContent = "Check availability";
   }
 });
 
@@ -391,10 +400,10 @@ function renderRoomData(rooms) {
       const link = makeElement("a", "room-image");
       const image = makeElement("img");
       image.loading = "lazy";
-      const arrow = makeElement("span", "room-arrow", "↗");
+      const arrow = makeElement("span", "room-arrow", String(index + 1).padStart(2, "0"));
       arrow.setAttribute("aria-hidden", "true");
       link.append(image, arrow);
-      const info = makeElement("div", "room-info");
+      const info = makeElement("div", "room-info room-copy");
       const titleWrap = makeElement("div");
       titleWrap.append(makeElement("h3"), makeElement("p"));
       const price = makeElement("p", "room-price");
@@ -410,7 +419,8 @@ function renderRoomData(rooms) {
     const image = card.querySelector("img");
     image.alt = room.name;
     const safeImage = validImageURL(room.image_url);
-    image.src = safeImage || "/devantara-resort.jpg";
+    image.src = safeImage || "/assets/resort/bedroom.webp";
+    if (!safeImage) image.alt = "A guest bedroom at Devantara Resort";
     card.querySelector(".room-photo-thumbnails")?.remove();
     const photos = (room.photos || []).map(validImageURL).filter(Boolean);
     if (photos.length > 1) {
@@ -448,7 +458,6 @@ function renderRoomData(rooms) {
     details.replaceChildren(
       makeElement("span", "", `${room.capacity_adults} adult capacity`),
       makeElement("span", "", `${room.capacity_children} child capacity`),
-      makeElement("span", "", `${room.inventory} available unit${room.inventory === 1 ? "" : "s"}`),
     );
     card.querySelector(".room-tag")?.remove();
   }
@@ -541,29 +550,42 @@ async function loadGallery() {
   try {
     const images = await api("/api/gallery");
     const visibleImages = images.filter((image) => validImageURL(image.image_url));
-    grid.replaceChildren();
-    grid.hidden = visibleImages.length === 0;
-    empty.hidden = visibleImages.length > 0;
+    const existingURLs = new Set([...grid.querySelectorAll("img")].map((image) => image.src));
+    grid.hidden = false;
+    empty.hidden = true;
     for (const [index, item] of visibleImages.entries()) {
-      const link = makeElement("a", `gallery-item${index === 0 ? " gallery-tall" : ""}`);
+      if (existingURLs.has(validImageURL(item.image_url))) continue;
+      const link = makeElement("a", "gallery-item");
       link.dataset.category = item.category;
-      link.href = "#rooms";
+      link.href = validImageURL(item.image_url);
       link.setAttribute("aria-label", item.alt_text || item.title);
       const image = makeElement("img");
       image.src = validImageURL(item.image_url);
       image.alt = item.alt_text || item.title;
       image.loading = "lazy";
-      const caption = makeElement("span", "", item.title);
+      const caption = makeElement("span", "gallery-caption", item.title);
       if (item.category) caption.append(makeElement("small", "", item.category));
       link.append(image, caption);
       grid.append(link);
     }
   } catch (error) {
-    grid.hidden = true;
-    empty.textContent = "Gallery images could not be loaded. Please try again later.";
-    empty.hidden = false;
+    // The supplied property photos remain available if optional gallery data fails.
+    grid.hidden = false;
+    empty.hidden = true;
     console.error("Could not load the resort gallery.", error);
   }
+  applyGalleryFilter();
+}
+
+function applyGalleryFilter() {
+  const filter = document.querySelector(".filter-button.active")?.dataset.filter || "all";
+  let visible = 0;
+  document.querySelector(".gallery-grid").classList.toggle("is-filtered", filter !== "all");
+  document.querySelectorAll(".gallery-item").forEach((item) => {
+    item.hidden = filter !== "all" && item.dataset.category !== filter;
+    if (!item.hidden) visible += 1;
+  });
+  document.querySelector("#gallery-empty").hidden = visible > 0;
 }
 
 async function loadSiteInfo() {
@@ -607,9 +629,7 @@ document.querySelectorAll(".filter-button").forEach((button) => {
       item.classList.toggle("active", selected);
       item.setAttribute("aria-pressed", String(selected));
     });
-    document.querySelectorAll(".gallery-item").forEach((item) => {
-      item.hidden = filter !== "all" && item.dataset.category !== filter;
-    });
+    applyGalleryFilter();
   });
 });
 
